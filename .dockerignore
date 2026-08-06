@@ -1,0 +1,43 @@
+# ── Python 字节码 ──
+__pycache__/
+*.pyc
+*.pyo
+
+# ── 虚拟环境 ──
+venv/
+.venv/
+env/
+
+# ── SQLite 数据库（运行时通过 volume 挂载）──
+*.db
+*.db-journal
+*.db-wal
+.db_schema_version
+
+# ── 运行时持久化数据目录 ──
+calendar/
+
+# ── IDE & 编辑器 ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── 操作系统 ──
+.DS_Store
+Thumbs.db
+
+# ── Git ──
+.git/
+.gitignore
+
+# ── 临时/测试脚本 ──
+test_*.py
+debug_*.py
+
+# ── Node.js ──
+frontend-react/node_modules/
+frontend-react/dist/
+
+# ── 旧前端（已迁移到 React）──
+frontend/
