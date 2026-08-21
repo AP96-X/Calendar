@@ -47,6 +47,15 @@ services:
       # 备案信息
       - ICP_NUMBER=${ICP_NUMBER:-}
       - PUBLIC_SECURITY_NUMBER=${PUBLIC_SECURITY_NUMBER:-}
+      # AI 总结（未配置 AI_API_KEY 时自动降级为统计型报告）
+      - AI_REPORT_ENABLED=${AI_REPORT_ENABLED:-1}
+      - AI_PROVIDER=${AI_PROVIDER:-openai-compatible}
+      - AI_API_BASE=${AI_API_BASE:-https://api.openai.com/v1}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-gpt-4o-mini}
+      - AI_TIMEOUT=${AI_TIMEOUT:-60}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - AI_MONTHLY_LIMIT=${AI_MONTHLY_LIMIT:-20}
       # MySQL 连接（仅当 CALENDAR_DB_TYPE=mysql 时生效）
       - CALENDAR_MYSQL_HOST=mysql
       - CALENDAR_MYSQL_PORT=3306

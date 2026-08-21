@@ -3,6 +3,8 @@ import { Card, Form, Input, Button, Descriptions, App, Spin } from 'antd';
 import AppLayout from '../components/AppLayout';
 import { profileApi } from '../api/profile';
 import { useAuth } from '../stores/auth';
+import { passwordValidator } from '../utils/password';
+import { formatCnTime } from '../utils/time';
 import type { Profile } from '../types';
 
 export default function ProfilePage() {
@@ -80,7 +82,7 @@ export default function ProfilePage() {
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="用户名">{profile?.username}</Descriptions.Item>
             <Descriptions.Item label="角色">{profile?.role === 'admin' ? '管理员' : '普通用户'}</Descriptions.Item>
-            <Descriptions.Item label="创建时间">{profile?.created_at || '-'}</Descriptions.Item>
+            <Descriptions.Item label="创建时间">{formatCnTime(profile?.created_at)}</Descriptions.Item>
           </Descriptions>
 
           <Form
@@ -119,10 +121,10 @@ export default function ProfilePage() {
             </Form.Item>
             <Form.Item
               name="new_password"
-              label="新密码（至少6位）"
+              label="新密码（至少8位，含大写/小写/数字/特殊字符至少3类）"
               rules={[
                 { required: true, message: '请输入新密码' },
-                { min: 6, message: '密码至少6位' },
+                { validator: passwordValidator },
               ]}
             >
               <Input.Password placeholder="输入新密码" />

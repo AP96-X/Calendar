@@ -2,10 +2,9 @@
 """用户管理路由（管理员专属）"""
 
 import bcrypt
-from datetime import datetime
 from flask import Blueprint, request, jsonify
-from ..database import get_db
-from ..auth import require_admin, get_current_user, add_audit_log
+from ..database import get_db, db_now
+from ..auth import require_admin, get_current_user, add_audit_log, validate_password_strength
 
 users_bp = Blueprint('users', __name__)
 
@@ -39,8 +38,9 @@ def create_user():
 
     if not username or not password:
         return jsonify({'error': '用户名和密码不能为空'}), 400
-    if len(password) < 6:
-        return jsonify({'error': '密码至少6位'}), 400
+    ok, msg = validate_password_strength(password, username=username)
+    if not ok:
+        return jsonify({'error': msg}), 400
     if role == 'admin':
         return jsonify({'error': '系统仅允许一个管理员账号'}), 400
 
@@ -50,9 +50,11 @@ def create_user():
         return jsonify({'error': '用户名已存在'}), 409
 
     pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    now = db_now()
     cur = db.execute(
-        'INSERT INTO users (username, password_hash, display_name, role) VALUES (?, ?, ?, ?)',
-        (username, pw_hash.decode('utf-8'), display_name or username, role)
+        'INSERT INTO users (username, password_hash, display_name, role, created_at, updated_at) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        (username, pw_hash.decode('utf-8'), display_name or username, role, now, now)
     )
     db.commit()
     new_id = cur.lastrowid
@@ -93,7 +95,7 @@ def update_user(user_id):
 
     if updates:
         updates.append('updated_at=?')
-        params.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        params.append(db_now())
         params.append(user_id)
         db.execute(f'UPDATE users SET {", ".join(updates)} WHERE id=?', params)
         db.commit()
@@ -112,13 +114,14 @@ def admin_reset_password(user_id):
         return jsonify({'error': '用户不存在'}), 404
 
     new_password = data.get('new_password', '').strip()
-    if not new_password or len(new_password) < 6:
-        return jsonify({'error': '新密码至少6位'}), 400
+    ok, msg = validate_password_strength(new_password, username=user['username'])
+    if not ok:
+        return jsonify({'error': msg}), 400
 
     pw_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
     db.execute(
         'UPDATE users SET password_hash=?, updated_at=? WHERE id=?',
-        (pw_hash.decode('utf-8'), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), user_id)
+        (pw_hash.decode('utf-8'), db_now(), user_id)
     )
     db.commit()
     add_audit_log('reset_password', user_id, f'重置 {user["username"]} 的密码')

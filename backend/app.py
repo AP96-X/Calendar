@@ -35,6 +35,7 @@ from .routes.users import users_bp
 from .routes.profile import profile_bp
 from .routes.audit import audit_bp
 from .routes.site import site_bp
+from .routes.report import report_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(events_bp)
@@ -43,6 +44,7 @@ app.register_blueprint(users_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(site_bp)
+app.register_blueprint(report_bp)
 
 
 @app.route('/')

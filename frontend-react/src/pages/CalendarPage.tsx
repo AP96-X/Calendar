@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Button, Segmented, Space, Tooltip, Card, App, Spin, Popover, Typography } from 'antd';
+import { Button, Segmented, Space, Tooltip, Card, App, Spin, Popover, Dropdown, Typography } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   LeftOutlined, RightOutlined, ReloadOutlined,
-  ImportOutlined, ExportOutlined, PlusOutlined, InfoCircleOutlined,
+  ImportOutlined, ExportOutlined, PlusOutlined, InfoCircleOutlined, RobotOutlined, DownOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AppLayout from '../components/AppLayout';
@@ -13,15 +14,24 @@ import EventModal from '../components/EventModal';
 import EventDetailModal from '../components/EventDetailModal';
 import ImportModal from '../components/ImportModal';
 import ExportModal from '../components/ExportModal';
+import ReportModal from '../components/ReportModal';
 import { useAuth } from '../stores/auth';
 import { eventsApi } from '../api/events';
 import { calendarApi } from '../api/calendar';
 import { getTodayStr, getMonthLabel, getWeekLabel, getDayLabel, getWeekDates } from '../utils/calendar';
-import type { EventsByDate, CalendarMeta, CalendarEvent } from '../types';
+import type { EventsByDate, CalendarMeta, CalendarEvent, ReportPeriod } from '../types';
 
 const { Text } = Typography;
 
 type ViewMode = 'month' | 'week' | 'day';
+
+// AI 总结入口：周/月/季度/年度下拉选项
+const REPORT_MENU_ITEMS: MenuProps['items'] = [
+  { key: 'week', label: '周总结' },
+  { key: 'month', label: '月总结' },
+  { key: 'quarter', label: '季度总结' },
+  { key: 'year', label: '年度总结' },
+];
 
 export default function CalendarPage() {
   const { isAdmin } = useAuth();
@@ -55,6 +65,15 @@ export default function CalendarPage() {
   // Export modal state
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
+  // AI report modal state
+  const [reportModal, setReportModal] = useState<{ period: ReportPeriod } | null>(null);
+
+  // AI report anchor date: 月视图锚定当前显示月，周/日视图锚定选中日期
+  const reportAnchorDate =
+    viewMode === 'month'
+      ? `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`
+      : selectedDate;
+
   // Refs for keyboard shortcut access to latest state
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
@@ -69,7 +88,16 @@ export default function CalendarPage() {
   const neededMonths = useMemo(() => {
     const months = new Set<string>();
     if (viewMode === 'month') {
-      months.add(`${currentYear}-${String(currentMonth).padStart(2, '0')}`);
+      // 42 格网格（周一开头）会覆盖上月末/下月初的补位日期，需拉取这些月份的元数据
+      const first = dayjs(`${currentYear}-${String(currentMonth).padStart(2, '0')}-01`);
+      const firstWeekday = (first.day() + 6) % 7; // 0=Mon
+      const gridStart = first.subtract(firstWeekday, 'day');
+      const gridEnd = gridStart.add(41, 'day');
+      let d = gridStart;
+      while (d.isBefore(gridEnd) || d.isSame(gridEnd, 'day')) {
+        months.add(`${d.year()}-${String(d.month() + 1).padStart(2, '0')}`);
+        d = d.add(1, 'month');
+      }
     } else if (viewMode === 'week') {
       const dates = getWeekDates(selectedDate);
       dates.forEach((d) => {
@@ -337,6 +365,17 @@ export default function CalendarPage() {
           />
           <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
+          <Dropdown
+            menu={{
+              items: REPORT_MENU_ITEMS,
+              onClick: ({ key }) => setReportModal({ period: key as ReportPeriod }),
+            }}
+            placement="bottomRight"
+          >
+            <Button icon={<RobotOutlined />}>
+              AI总结 <DownOutlined />
+            </Button>
+          </Dropdown>
           {isAdmin && (
             <>
               <Tooltip title="刷新日历元数据（农历/节气/节假日）">
@@ -444,6 +483,13 @@ export default function CalendarPage() {
         defaultYear={currentYear}
         defaultMonth={currentMonth}
         onClose={() => setExportModalOpen(false)}
+      />
+
+      <ReportModal
+        open={!!reportModal}
+        period={reportModal?.period || 'week'}
+        anchorDate={reportAnchorDate}
+        onClose={() => setReportModal(null)}
       />
     </AppLayout>
   );

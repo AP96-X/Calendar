@@ -4,6 +4,8 @@ import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import AppLayout from '../components/AppLayout';
 import { usersApi } from '../api/users';
 import { auditApi } from '../api/audit';
+import { passwordValidator, passwordStrengthError } from '../utils/password';
+import { formatCnTime } from '../utils/time';
 import type { User, AuditLog, LoginLog } from '../types';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -97,14 +99,15 @@ export default function AdminPage() {
       title: `重置 ${user.username} 的密码`,
       content: (
         <Input.Password
-          placeholder="输入新密码（≥6位）"
+          placeholder="输入新密码（≥8位，含大写/小写/数字/特殊字符至少3类）"
           onChange={(e) => { newPwd = e.target.value; }}
           style={{ marginTop: 8 }}
         />
       ),
       onOk: async () => {
-        if (newPwd.length < 6) {
-          message.error('密码至少6位');
+        const err = passwordStrengthError(newPwd);
+        if (err) {
+          message.error(err);
           return Promise.reject();
         }
         try {
@@ -157,7 +160,7 @@ export default function AdminPage() {
         </Tag>
       ),
     },
-    { title: '创建时间', dataIndex: 'created_at', width: 160 },
+    { title: '创建时间', dataIndex: 'created_at', width: 190, render: (v: string) => formatCnTime(v) },
     {
       title: '操作', key: 'actions', width: 220,
       render: (_, record) => (
@@ -179,7 +182,7 @@ export default function AdminPage() {
   ];
 
   const auditColumns: ColumnsType<AuditLog> = [
-    { title: '时间', dataIndex: 'created_at', width: 160 },
+    { title: '时间', dataIndex: 'created_at', width: 190, render: (v: string) => formatCnTime(v) },
     { title: '管理员', dataIndex: 'admin', width: 100 },
     { title: '操作', dataIndex: 'action', width: 120 },
     { title: '目标用户', dataIndex: 'target', width: 100 },
@@ -187,7 +190,7 @@ export default function AdminPage() {
   ];
 
   const loginColumns: ColumnsType<LoginLog> = [
-    { title: '时间', dataIndex: 'attempted_at', width: 160 },
+    { title: '时间', dataIndex: 'attempted_at', width: 190, render: (v: string) => formatCnTime(v) },
     { title: '用户名', dataIndex: 'username', width: 120 },
     { title: 'IP地址', dataIndex: 'ip_address', width: 140 },
     {
@@ -222,8 +225,8 @@ export default function AdminPage() {
                       <Form.Item name="username" rules={[{ required: true, message: '用户名' }]}>
                         <Input placeholder="用户名" style={{ width: 120 }} />
                       </Form.Item>
-                      <Form.Item name="password" rules={[{ required: true, message: '密码' }, { min: 6, message: '≥6位' }]}>
-                        <Input.Password placeholder="密码(≥6位)" style={{ width: 130 }} />
+                      <Form.Item name="password" rules={[{ required: true, message: '密码' }, { validator: passwordValidator }]}>
+                        <Input.Password placeholder="密码(≥8位，含3类字符)" style={{ width: 190 }} />
                       </Form.Item>
                       <Form.Item name="display_name">
                         <Input placeholder="显示名称" style={{ width: 120 }} />

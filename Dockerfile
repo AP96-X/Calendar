@@ -8,8 +8,11 @@ FROM node:20-slim AS frontend-builder
 WORKDIR /frontend
 
 # 复制 package 文件并安装依赖（利用分层缓存）
-COPY frontend-react/package.json frontend-react/package-lock.json* ./
-RUN npm ci || npm install
+# npm ci 要求 package-lock.json 与 package.json 完全同步（必须先提交两者）
+# 将 lock 中下载地址替换为国内镜像，加速依赖下载（服务器直连 npmjs 通常很慢）
+COPY frontend-react/package.json frontend-react/package-lock.json ./
+RUN sed -i 's|https://registry.npmjs.org/|https://registry.npmmirror.com/|g' package-lock.json \
+    && npm ci
 
 # 复制源码并构建
 COPY frontend-react/ ./

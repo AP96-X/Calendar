@@ -3,14 +3,14 @@
 
 import re
 import calendar as cal_mod
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO
 
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 from flask import Blueprint, request, jsonify, send_file
-from ..database import get_db
+from ..database import get_db, db_now
 from ..auth import require_login, get_current_user_id
 
 events_bp = Blueprint('events', __name__)
@@ -33,28 +33,28 @@ def _require_uid():
 
 @events_bp.route('/api/events', methods=['GET'])
 def get_events():
+    """按月查询事件。
+
+    月视图是 6 行 x 7 列（周一开头）的 42 格网格，网格首尾会包含
+    上月末/下月初的补位日期。因此这里返回「完整网格区间」的数据：
+    网格起始 = 当月 1 号所在周的周一，网格结束 = 当月最后一天所在周的周日。
+    """
     uid = _require_uid()
     year = request.args.get('year', type=int)
     month = request.args.get('month', type=int)
-    if year and month:
-        start_date = f"{year:04d}-{month:02d}-01"
-        if month == 12:
-            end_date = f"{year + 1:04d}-01-01"
-        else:
-            end_date = f"{year:04d}-{month + 1:02d}-01"
-    else:
+    if not year or not month:
         today = datetime.now()
         year, month = today.year, today.month
-        start_date = f"{year:04d}-{month:02d}-01"
-        if month == 12:
-            end_date = f"{year + 1:04d}-01-01"
-        else:
-            end_date = f"{year:04d}-{month + 1:02d}-01"
+
+    first_of_month = date(year, month, 1)
+    grid_start = first_of_month - timedelta(days=first_of_month.weekday())
+    last_of_month = (first_of_month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    grid_end = last_of_month + timedelta(days=6 - last_of_month.weekday())
 
     db = get_db()
     rows = db.execute(
-        'SELECT * FROM events WHERE user_id = ? AND date >= ? AND date < ? ORDER BY date, time',
-        (uid, start_date, end_date)
+        'SELECT * FROM events WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date, time',
+        (uid, grid_start.strftime('%Y-%m-%d'), grid_end.strftime('%Y-%m-%d'))
     ).fetchall()
     return jsonify([_event_row(r) for r in rows])
 
@@ -139,7 +139,7 @@ def update_event(event_id):
     db.execute(
         'UPDATE events SET title=?, date=?, time=?, color=?, completed=?, updated_at=? WHERE id=?',
         (title, date_str, time_str, color, completed,
-         datetime.now().strftime('%Y-%m-%d %H:%M:%S'), event_id)
+         db_now(), event_id)
     )
     db.commit()
     return jsonify({'success': True})
@@ -158,7 +158,7 @@ def toggle_event(event_id):
     new_status = 0 if existing['completed'] else 1
     db.execute(
         'UPDATE events SET completed=?, updated_at=? WHERE id=?',
-        (new_status, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), event_id)
+        (new_status, db_now(), event_id)
     )
     db.commit()
     return jsonify({'completed': bool(new_status)})

@@ -103,3 +103,72 @@ export interface ApiResponse<T = unknown> {
   message?: string;
   [key: string]: unknown;
 }
+
+// ========== AI Report Types ==========
+export type ReportPeriod = 'week' | 'month' | 'quarter' | 'year';
+
+/** 聚合后的事项（相同标题合并，count 为出现次数；生成前可由用户整理修改） */
+export interface ReportItem {
+  title: string;
+  count: number;
+  completed: number;
+  color: string;
+}
+
+export interface ReportPeriodStats {
+  period: ReportPeriod;
+  label: string;
+  start: string;
+  end: string;
+  total: number;
+  completed: number;
+  pending: number;
+  completion_rate: number;
+  by_color: Record<string, { total: number; completed: number }>;
+  /** 相同事件已整合：按标题合并，count 为出现次数 */
+  aggregated: ReportItem[];
+}
+
+export interface ReportUsage {
+  month: string;
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+/** 提示词模板：default_prompt 为系统默认模板，custom_prompt 为用户已保存的自定义模板（null=未自定义） */
+export interface ReportPrompt {
+  default_prompt: string;
+  custom_prompt: string | null;
+}
+
+export interface ReportEvent {
+  title: string;
+  date: string;
+  time: string;
+  color: string;
+  completed: boolean;
+}
+
+/** 周报三块区域预填数据（均按标题去重） */
+export interface WeeklyPreview {
+  done_titles: string[];
+  pending_titles: string[];
+  next_titles: string[];
+}
+
+export interface ReportResult {
+  success: boolean;
+  period: ReportPeriod;
+  markdown: string;
+  /** 统计信息（周报润色模式下为 null） */
+  stats: ReportPeriodStats | null;
+  events: ReportEvent[];
+  model: string | null;
+  degraded: boolean;
+  /** AI 输出是否因超过生成长度上限被截断（已自动重试一次后仍截断） */
+  truncated?: boolean;
+  ai_error: string | null;
+  usage?: ReportUsage;
+  generated_at: string;
+}

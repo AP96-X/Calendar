@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """日历元数据路由（性能优化版 — 内存缓存 + HTTP 缓存头 + 消除冗余查询）"""
 
-from datetime import date, datetime
+from datetime import date
 from flask import Blueprint, request, jsonify
-from ..database import get_db
+from ..database import get_db, db_now
 from ..auth import require_admin
 from ..services.calendar_service import compute_calendar_meta_for_month, get_calendar_meta_from_db
 
@@ -24,7 +24,7 @@ def calendar_meta():
         # compute 现在直接返回结果，无需再查 DB
         _, result = compute_calendar_meta_for_month(year, month)
         # 重新获取 updated_at（compute 内部用的是统一 now_str）
-        max_updated = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        max_updated = db_now()
 
     # HTTP 缓存头：日历元数据在刷新前不变，允许浏览器/CDN 缓存 2 小时
     resp = jsonify(result)

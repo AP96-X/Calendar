@@ -238,3 +238,77 @@ body {
 .cal-week-event .ant-checkbox-checked .ant-checkbox-inner::after {
   border-color: #27ae60 !important;
 }
+
+/* ========== AI 报告 Markdown 渲染 ========== */
+.report-markdown {
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(0, 0, 0, 0.88);
+  word-break: break-word;
+}
+
+.report-markdown h1,
+.report-markdown h2,
+.report-markdown h3 {
+  margin: 12px 0 8px;
+  font-weight: 600;
+}
+
+.report-markdown h1 {
+  font-size: 18px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 6px;
+}
+
+.report-markdown h2 {
+  font-size: 15px;
+  margin-top: 16px;
+}
+
+.report-markdown p {
+  margin: 6px 0;
+}
+
+.report-markdown ul,
+.report-markdown ol {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+
+.report-markdown li {
+  margin: 3px 0;
+}
+
+.report-markdown strong {
+  font-weight: 600;
+  color: #1677ff;
+}
+
+.report-markdown code {
+  background: #f0f0f0;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+
+.report-markdown blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid #d9d9d9;
+  color: #666;
+  background: #fafafa;
+  border-radius: 0 4px 4px 0;
+}
+
+.report-markdown table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.report-markdown th,
+.report-markdown td {
+  border: 1px solid #e5e7eb;
+  padding: 4px 10px;
+  text-align: left;
+}

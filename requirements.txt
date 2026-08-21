@@ -5,6 +5,8 @@ lunardate>=0.2
 chinese-calendar>=1.8
 ephem>=4.1
 openpyxl>=3.0
+# IANA 时区数据库（Windows 等无系统时区数据的环境需要，中国时区 ZoneInfo 依赖）
+tzdata>=2024.1
 # MySQL/MariaDB support (optional, only needed when DB_TYPE='mysql')
 pymysql>=1.0
 DBUtils>=3.0

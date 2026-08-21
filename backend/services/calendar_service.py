@@ -2,8 +2,8 @@
 """农历节假日节气服务 - 对外统一入口（性能优化版）"""
 
 import calendar as cal_mod
-from datetime import date, datetime
-from ..database import get_db
+from datetime import date
+from ..database import get_db, db_now
 from .lunar import get_lunar_info
 from .holiday import get_holiday_info
 from .solar_term import get_solar_term_for_date, get_solar_terms_for_year
@@ -13,7 +13,7 @@ def compute_calendar_meta_for_month(year, month):
     """计算一个月日历元数据并批量写入 DB（使用 executemany）"""
     total_days = cal_mod.monthrange(year, month)[1]
     db = get_db()
-    now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now_str = db_now()
 
     # 预缓存全年节气（避免循环内逐日 DB 查询）
     _ = get_solar_terms_for_year(year)

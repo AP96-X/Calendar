@@ -2,10 +2,9 @@
 """个人信息与密码修改路由"""
 
 import bcrypt
-from datetime import datetime
 from flask import Blueprint, request, jsonify
-from ..database import get_db
-from ..auth import require_login, get_current_user
+from ..database import get_db, db_now
+from ..auth import require_login, get_current_user, validate_password_strength
 
 profile_bp = Blueprint('profile', __name__)
 
@@ -34,7 +33,7 @@ def update_profile():
     db = get_db()
     db.execute(
         'UPDATE users SET display_name=?, updated_at=? WHERE id=?',
-        (display_name, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), user['id'])
+        (display_name, db_now(), user['id'])
     )
     db.commit()
     return jsonify({'success': True, 'display_name': display_name})
@@ -50,16 +49,17 @@ def change_password():
 
     if not old_password or not new_password:
         return jsonify({'error': '旧密码和新密码不能为空'}), 400
-    if len(new_password) < 6:
-        return jsonify({'error': '新密码至少6位'}), 400
     if not bcrypt.checkpw(old_password.encode('utf-8'), user['password_hash'].encode('utf-8')):
         return jsonify({'error': '旧密码错误'}), 400
+    ok, msg = validate_password_strength(new_password, username=user['username'])
+    if not ok:
+        return jsonify({'error': msg}), 400
 
     db = get_db()
     pw_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
     db.execute(
         'UPDATE users SET password_hash=?, updated_at=? WHERE id=?',
-        (pw_hash.decode('utf-8'), datetime.now().strftime('%Y-%m-%d %H:%M:%S'), user['id'])
+        (pw_hash.decode('utf-8'), db_now(), user['id'])
     )
     db.commit()
     return jsonify({'success': True, 'message': '密码已修改'})

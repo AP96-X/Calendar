@@ -68,3 +68,6 @@ desktop.ini
 
 # Docker runtime
 docker-data/
+
+#serena
+.serena/

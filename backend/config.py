@@ -43,3 +43,17 @@ else:
 # 通过环境变量注入，未设置时为空（前端不展示备案信息）
 ICP_NUMBER = os.environ.get('ICP_NUMBER', '').strip()
 PUBLIC_SECURITY_NUMBER = os.environ.get('PUBLIC_SECURITY_NUMBER', '').strip()
+
+# ============================================================
+# AI 报告配置 —— OpenAI 兼容协议（DeepSeek / 通义 / OpenAI 等）
+# ============================================================
+# 未配置 AI_API_KEY 时，AI 周报/月报自动降级为统计型报告（功能不失效）
+AI_REPORT_ENABLED = os.environ.get('AI_REPORT_ENABLED', '1').lower() in ('1', 'true', 'yes', 'on')
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai-compatible')  # 'openai-compatible' | 'ollama'
+AI_API_BASE = os.environ.get('AI_API_BASE', 'https://api.openai.com/v1').rstrip('/')
+AI_API_KEY = os.environ.get('AI_API_KEY', '').strip()
+AI_MODEL = os.environ.get('AI_MODEL', 'gpt-4o-mini')
+AI_TIMEOUT = int(os.environ.get('AI_TIMEOUT', '60'))
+AI_MAX_TOKENS = int(os.environ.get('AI_MAX_TOKENS', '4096'))
+# 每个用户每月 AI 报告生成次数上限（仅 AI 成功调用计数，降级统计报告不消耗）
+AI_MONTHLY_LIMIT = int(os.environ.get('AI_MONTHLY_LIMIT', '20'))
