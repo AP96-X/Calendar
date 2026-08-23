@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """AI 周报/月报/季报/年报路由"""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from flask import Blueprint, request, jsonify
 from ..auth import require_login, get_current_user_id
 from ..services.report import (
-    generate_report, generate_weekly_report, get_usage_payload, build_period_stats,
-    build_weekly_sections, validate_items, get_period_range,
-    DEFAULT_PROMPT_TEMPLATE, validate_prompt_template, WEEKLY_SECTION_MAX_LEN,
+    generate_report, get_usage_payload, build_period_stats, get_period_range,
+    DEFAULT_PROMPT_TEMPLATE, validate_prompt_template,
     get_user_prompt, save_user_prompt, reset_user_prompt,
 )
 
@@ -68,23 +67,6 @@ def ai_report():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
-    # 周报三块区域润色模式：work_done / next_work / help_needed
-    if period == 'week' and any(k in data for k in ('work_done', 'next_work', 'help_needed')):
-        work_done = data.get('work_done') or ''
-        next_work = data.get('next_work') or ''
-        help_needed = data.get('help_needed') or ''
-        for name, val in (('work_done', work_done), ('next_work', next_work), ('help_needed', help_needed)):
-            if not isinstance(val, str):
-                return jsonify({'error': f'{name} 必须为字符串'}), 400
-            if len(val) > WEEKLY_SECTION_MAX_LEN:
-                return jsonify({'error': f'{name} 不能超过 {WEEKLY_SECTION_MAX_LEN} 字'}), 400
-        uid = get_current_user_id()
-        try:
-            result, status = generate_weekly_report(uid, work_done, next_work, help_needed)
-            return jsonify(result), status
-        except Exception as e:  # noqa: BLE001
-            return jsonify({'error': f'生成周报失败: {str(e)}'}), 500
-
     # 兼容旧参数：date + offset（前端已改为手动选时间，此处仅作回退）
     date_str = data.get('date') or None
     try:
@@ -110,14 +92,6 @@ def ai_report():
         if len(note) > NOTE_MAX_LEN:
             return jsonify({'error': f'补充说明不能超过 {NOTE_MAX_LEN} 字'}), 400
 
-    # 用户整理后的事项清单（可选；未传时使用自动聚合清单）
-    items = data.get('items')
-    if items is not None:
-        try:
-            validate_items(items)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
-
     # 自定义提示词模板（可选；未传时使用用户已保存模板或默认模板）
     prompt_template = data.get('prompt')
     if prompt_template is not None:
@@ -137,7 +111,6 @@ def ai_report():
             end=end.strftime('%Y-%m-%d') if end else None,
             offset=offset if not (start and end) else 0,
             note=note or '',
-            items=items,
             prompt_template=prompt_template,
         )
         return jsonify(result), status
@@ -164,24 +137,9 @@ def report_preview():
             start=start.strftime('%Y-%m-%d') if start else None,
             end=end.strftime('%Y-%m-%d') if end else None,
         )
-        # 预览不需要逐条事件，仅返回统计 + 聚合清单
-        payload = {k: v for k, v in stats.items() if k != 'events'}
-        # 周报模式：额外返回三块区域预填数据（本周已完成/未完成 + 下周已安排）
-        if period == 'week':
-            n_start = _parse_date_str(request.args.get('next_start'))
-            n_end = _parse_date_str(request.args.get('next_end'))
-            if n_start is None or n_end is None:
-                # 缺省：本周结束后的 7 天为「下周」
-                eff_end = datetime.strptime(stats['end'], '%Y-%m-%d').date()
-                n_start, n_end = eff_end + timedelta(days=1), eff_end + timedelta(days=7)
-            elif n_end < n_start:
-                return jsonify({'error': '结束日期不能早于开始日期'}), 400
-            weekly = build_weekly_sections(
-                uid, stats['start'], stats['end'],
-                n_start.strftime('%Y-%m-%d'), n_end.strftime('%Y-%m-%d'),
-            )
-            payload.update(weekly)
-        return jsonify(payload)
+        # 前端需要展示「将提交的全部事件」清单，故返回 events（逐条原始事件）；
+        # 相同/相似事件的合并由 AI 在生成阶段完成。
+        return jsonify(stats)
     except Exception as e:  # noqa: BLE001
         return jsonify({'error': f'统计失败: {str(e)}'}), 500
 

@@ -3,8 +3,8 @@
 
 - 周期支持：week（周）、month（月）、quarter（季度）、year（年度）；
   时间范围由前端手动选择（start/end），未传时回退到「当前周期」默认范围。
-- 生成前用户可查看并整理聚合后的事项清单（改名/删除/新增），
-  整理结果随请求（items）提交，AI 按整理后清单生成总结。
+- 四种周期流程统一：取该时间范围内的全部事件提交给 AI，由 AI 整合并合并
+  相同或相似事件（不按天罗列、不漏项）；未配置 AI 时降级为按标题合并的统计报告。
 - 提示词模板化：默认模板 DEFAULT_PROMPT_TEMPLATE 展示给用户，支持占位符
   （{周期} {时间范围} {用户} {统计数据} {分类统计} {事项清单} {补充说明} {长度预算}），
   用户可自定义并保存到 user_report_prompts 表（每用户一行），生成时按
@@ -38,7 +38,7 @@ PROMPT_PLACEHOLDERS = (
 # 提示词模板最大长度（字符）
 PROMPT_MAX_LEN = 2000
 
-DEFAULT_PROMPT_TEMPLATE = """你是用户的个人日程助手。请根据以下{周期}（{时间范围}）的日程数据生成一份中文 Markdown 报告。
+DEFAULT_PROMPT_TEMPLATE = """你是用户的个人日程助手。请根据以下{周期}（{时间范围}）的全部日程事件，生成一份整合后的中文 Markdown 报告。
 用户：{用户}
 周期：{时间范围}
 {统计数据}
@@ -46,12 +46,12 @@ DEFAULT_PROMPT_TEMPLATE = """你是用户的个人日程助手。请根据以下
 {事项清单}
 {补充说明}
 
-请输出 Markdown 格式报告，结构如下：
+请先**整合并合并相同或相似的事件**（例如同一项目/任务的多次记录、标题相近或同属一项工作的条目），把重复的合并为一条，再基于合并后的事项输出：
 1. **{周期}总结**：1-2 句整体情况（结合完成率与事件量）。
-2. **本{周期}做的事**：只列出已开始/已完成的事项（相同事件整合为一条，不要按天罗列），说明次数与完成状态。
+2. **本{周期}做的事**：合并后的已完成事项（相同/相似事件已合并为一条），说明次数与完成状态。
 3. **下{周期}要做的事**：基于未完成事项与用户补充说明，给出 1-5 条具体计划。
 4. **建议**（可选）：1-2 条针对性建议。
-要求：语气专业简洁；只使用提供的数据和用户补充说明，不要编造；总长度不超过 {长度预算} 字，完整覆盖上面的事项清单，不要省略。"""
+要求：必须把提供的事件中相同或相似的部分合并为一条，不要按天罗列，也不要遗漏任何原始事件；语气专业简洁；只使用提供的数据和补充说明，不要编造；总长度不超过 {长度预算} 字。"""
 
 
 def _parse_date(d):
@@ -160,167 +160,17 @@ def build_period_stats(uid, period, start=None, end=None, offset=0):
     }
 
 
-def validate_items(items):
-    """校验用户整理后的事项清单，非法时抛 ValueError。"""
-    if not isinstance(items, list):
-        raise ValueError('items 必须为数组')
-    if len(items) > 200:
-        raise ValueError('事项清单最多 200 条')
-    for it in items:
-        if not isinstance(it, dict):
-            raise ValueError('事项条目格式错误')
-        title = it.get('title')
-        if not isinstance(title, str) or not title.strip():
-            raise ValueError('事项标题不能为空')
-        try:
-            count = int(it.get('count', 1))
-            completed = int(it.get('completed', 0))
-        except (TypeError, ValueError):
-            raise ValueError('事项次数必须为整数')
-        if count < 1 or count > 9999:
-            raise ValueError('事项次数需在 1~9999 之间')
-        if completed < 0 or completed > count:
-            raise ValueError('完成数量需在 0~次数 之间')
-    return True
-
-
-# ==================== 周报三块区域（本周工作/下周工作/需要协调和帮助） ====================
-# 每个区域的文字内容最大长度（字符）
-WEEKLY_SECTION_MAX_LEN = 2000
-
-
-def build_weekly_sections(uid, start, end, next_start, next_end):
-    """周报三块区域预填数据（均按标题去重、按最早日期排序）：
-    - done_titles：本周已完成事件标题
-    - pending_titles：本周未完成事件标题
-    - next_titles：下周已安排事件标题
-    """
-    db = get_db()
-
-    def _titles(where, params):
-        rows = db.execute(
-            'SELECT title FROM events WHERE user_id = ? AND ' + where +
-            ' GROUP BY title ORDER BY MIN(date), MIN(time)',
-            params,
-        ).fetchall()
-        return [r['title'] for r in rows]
-
-    done_titles = _titles('completed = 1 AND date >= ? AND date <= ?', (uid, start, end))
-    pending_titles = _titles('completed = 0 AND date >= ? AND date <= ?', (uid, start, end))
-    next_titles = _titles('date >= ? AND date <= ?', (uid, next_start, next_end))
-    return {
-        'done_titles': done_titles,
-        'pending_titles': pending_titles,
-        'next_titles': next_titles,
-    }
-
-
-def build_weekly_prompt(work_done, next_work, help_needed):
-    """周报润色 prompt：把用户整理的三块内容交给 AI 润色。"""
-    lines = ['你是用户的个人日程助手。请将用户整理的周报草稿润色为一份简洁、专业、条理清晰的中文 Markdown 周报。']
-    lines.append('要求：')
-    lines.append('1. 完整保留用户提供的内容，不要遗漏，也不要编造用户未写的内容；')
-    lines.append('2. 润色措辞、合并同类项、补充必要的连接语，使读起来通顺专业；')
-    lines.append('3. 固定输出以下结构（Markdown 二级标题）：')
-    lines.append('## 本周工作')
-    lines.append('（内容）')
-    lines.append('## 下周工作')
-    lines.append('（内容）')
-    lines.append('## 需要协调和帮助')
-    lines.append('（内容；若用户未填写则写「暂无」）')
-    lines.append('')
-    lines.append('以下是用户整理的周报草稿：')
-    lines.append('【本周工作】')
-    lines.append(work_done or '（空）')
-    lines.append('【下周工作】')
-    lines.append(next_work or '（空）')
-    lines.append('【需要协调和帮助】')
-    lines.append(help_needed or '（空）')
-    return '\n'.join(lines)
-
-
-def build_weekly_fallback(work_done, next_work, help_needed):
-    """周报降级：不依赖 LLM，按固定结构原样输出三块内容。"""
-    lines = ['# 周报', '']
-    lines.append('## 本周工作')
-    lines.append(work_done or '- 暂无')
-    lines.append('')
-    lines.append('## 下周工作')
-    lines.append(next_work or '- 暂无')
-    lines.append('')
-    lines.append('## 需要协调和帮助')
-    lines.append(help_needed or '- 暂无')
-    return '\n'.join(lines)
-
-
-def generate_weekly_report(uid, work_done='', next_work='', help_needed='', user=None):
-    """生成周报：将用户整理的三块内容交由 AI 润色；失败/未配置时降级原样输出。
-
-    返回 (result_dict, http_status)；额度不足时 status=429。
-    """
-    ok, usage = check_usage_available(uid)
-    if not ok:
-        return {
-            'success': False,
-            'error': f'本月 AI 报告次数已用完（{AI_MONTHLY_LIMIT} 次），下月自动恢复',
-            'code': 'REPORT_LIMIT_EXCEEDED',
-            'usage': usage,
-        }, 429
-
-    markdown = None
-    model = None
-    degraded = True
-    ai_error = None
-    truncated = False
-
-    if AI_REPORT_ENABLED and AI_API_KEY:
-        try:
-            if user is None:
-                db = get_db()
-                user = db.execute('SELECT * FROM users WHERE id = ?', (uid,)).fetchone()
-            prompt = build_weekly_prompt(work_done, next_work, help_needed)
-            markdown, finish = call_llm(prompt)
-            if finish == 'length':
-                markdown, finish = call_llm(prompt, max_tokens=min(AI_MAX_TOKENS * 2, 8192))
-            truncated = finish == 'length'
-            if truncated:
-                markdown = markdown.rstrip() + '\n\n> ⚠️ 提示：AI 输出超过生成长度上限被截断，可调大 AI_MAX_TOKENS 后重新生成。'
-            model = AI_MODEL
-            degraded = False
-            # 仅 AI 成功调用计数，降级报告不消耗次数
-            consume_usage(uid)
-            usage = get_usage_payload(uid)
-        except Exception as e:  # noqa: BLE001 —— AI 失败不应阻断报告
-            ai_error = str(e)
-
-    if markdown is None:
-        markdown = build_weekly_fallback(work_done, next_work, help_needed)
-
-    return {
-        'success': True,
-        'period': 'week',
-        'markdown': markdown,
-        'stats': None,
-        'events': [],
-        'model': model,
-        'degraded': degraded,
-        'truncated': truncated,
-        'ai_error': ai_error,
-        'usage': usage,
-        'generated_at': db_now(),
-    }, 200
-
-
-def render_prompt(template, stats, user, note='', items=None):
+def render_prompt(template, stats, user, note=''):
     """将提示词模板中的占位符替换为实际数据，返回完整 prompt。
 
     占位符：{周期} {时间范围} {用户} {统计数据} {分类统计} {事项清单} {补充说明} {长度预算}
+    {事项清单} 注入该时间范围内的全部原始事件，由 AI 自行整合并合并相同/相似事件。
     """
     period_cn = _PERIOD_CN.get(stats['period'], '')
-    event_items = items if items is not None else stats['aggregated']
-    n_items = len(event_items) if event_items else 0
-    # 长度预算随事项数量自适应，避免事项多时被强制压缩导致内容不完整
-    char_budget = min(300 + n_items * 20, 1500)
+    raw_events = stats.get('events') or []
+    n_events = len(raw_events)
+    # 长度预算随事件数量自适应（事件可能较多，预算需放宽以避免内容被强制压缩而遗漏）
+    char_budget = min(500 + n_events * 12, 3000)
 
     stats_line = (
         f'事件总数：{stats["total"]}，已完成 {stats["completed"]}，'
@@ -333,11 +183,12 @@ def render_prompt(template, stats, user, note='', items=None):
             for color, v in stats['by_color'].items()
         )
 
-    if event_items:
-        item_lines = ['整合后的事项清单（相同事件已合并，括号内为出现次数；已按用户整理）：']
-        for agg in event_items:
-            status = f"已完成 {agg['completed']}/{agg['count']}" if agg['completed'] else '未完成'
-            item_lines.append(f"- {agg['title']}（{agg['count']} 次，{status}）")
+    if raw_events:
+        item_lines = [f'全部事件（共 {n_events} 条，请将相同或相似的事件合并为一条，不要按天罗列、不要遗漏）：']
+        for e in raw_events:
+            status = '已完成' if e['completed'] else '未完成'
+            tm = f" {e['time']}" if (e.get('time') or '').strip() else ''
+            item_lines.append(f"- [{e['date']}] {e['title']}（{status}）{tm}")
         items_block = '\n'.join(item_lines)
     else:
         items_block = '该时间段内暂无事件'
@@ -406,17 +257,16 @@ def reset_user_prompt(uid):
     db.commit()
 
 
-def build_prompt(stats, user, note='', items=None, template=None):
+def build_prompt(stats, user, note='', template=None):
     """组装中文 prompt。只注入用户自己的数据。
 
-    报告格式要求：相同事件整合为一条（不按天罗列），
+    报告格式要求：将全部事件交由 AI 整合，相同或相似事件合并为一条（不按天罗列），
     只输出「本期做的事」与「下期要做的事」。
-    传入 items 时按用户整理后的事项清单生成；template 为自定义提示词模板
-    （缺省使用 DEFAULT_PROMPT_TEMPLATE）。
+    template 为自定义提示词模板（缺省使用 DEFAULT_PROMPT_TEMPLATE）。
     """
     if template is None:
         template = DEFAULT_PROMPT_TEMPLATE
-    return render_prompt(template, stats, user, note, items)
+    return render_prompt(template, stats, user, note)
 
 
 def call_llm(prompt, max_tokens=None):
@@ -481,8 +331,8 @@ def call_llm(prompt, max_tokens=None):
     return text, finish
 
 
-def build_fallback_report(stats, note='', items=None):
-    """降级：纯统计型 Markdown 报告（不依赖 LLM）。相同事件整合为一条。"""
+def build_fallback_report(stats, note=''):
+    """降级：纯统计型 Markdown 报告（不依赖 LLM）。按标题合并完全相同的事件。"""
     title = _REPORT_TITLES.get(stats['period'], stats['period'])
     period_cn = _PERIOD_CN.get(stats['period'], '')
     lines = [f'# {title}（{stats["label"]}）', '']
@@ -491,7 +341,7 @@ def build_fallback_report(stats, note='', items=None):
     lines.append(f'- 未完成：**{stats["pending"]}** 个')
     lines.append('')
     lines.append(f'## 本{period_cn}做的事')
-    event_items = items if items is not None else stats['aggregated']
+    event_items = stats.get('aggregated') or []
     if event_items:
         for agg in event_items:
             if agg['count'] > 1:
@@ -562,11 +412,11 @@ def consume_usage(uid):
     db.commit()
 
 
-def generate_report(uid, period, start=None, end=None, note='', items=None, user=None, offset=0, prompt_template=None):
+def generate_report(uid, period, start=None, end=None, note='', user=None, offset=0, prompt_template=None):
     """生成报告：优先 AI，失败/未配置时降级为统计报告。
 
-    start/end 为手动选择的时间范围（YYYY-MM-DD）；items 为用户整理后的事项清单
-    （未传时使用统计自动聚合的清单）；offset 仅在未传 start/end 时生效（兼容旧调用）。
+    start/end 为手动选择的时间范围（YYYY-MM-DD）；offset 仅在未传 start/end 时生效（兼容旧调用）。
+    生成时将该时间范围内的全部事件交给 AI，由 AI 整合并合并相同/相似事件。
     prompt_template 为自定义提示词模板（未传时使用用户已保存的模板，仍未保存则用默认模板）。
     返回 (result_dict, http_status)；额度不足时 status=429。
     """
@@ -593,7 +443,7 @@ def generate_report(uid, period, start=None, end=None, note='', items=None, user
                 user = db.execute('SELECT * FROM users WHERE id = ?', (uid,)).fetchone()
             if prompt_template is None:
                 prompt_template = get_user_prompt(uid) or DEFAULT_PROMPT_TEMPLATE
-            prompt = build_prompt(stats, user, note, items, prompt_template)
+            prompt = build_prompt(stats, user, note, prompt_template)
             markdown, finish = call_llm(prompt)
             if finish == 'length':
                 # 输出被截断：用更大的 max_tokens 重试一次，仍截断则保留并标记
@@ -610,7 +460,7 @@ def generate_report(uid, period, start=None, end=None, note='', items=None, user
             ai_error = str(e)
 
     if markdown is None:
-        markdown = build_fallback_report(stats, note, items)
+        markdown = build_fallback_report(stats, note)
 
     return {
         'success': True,

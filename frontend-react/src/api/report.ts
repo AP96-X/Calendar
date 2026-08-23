@@ -1,6 +1,6 @@
 import client from './client';
 import type {
-  ReportPeriod, ReportItem, ReportResult, ReportPeriodStats, ReportUsage, ReportPrompt, WeeklyPreview,
+  ReportPeriod, ReportResult, ReportPeriodStats, ReportUsage, ReportPrompt,
 } from '../types';
 
 export const reportApi = {
@@ -8,8 +8,8 @@ export const reportApi = {
    * 生成 AI 总结（周/月/季/年度）。
    * period: 'week'|'month'|'quarter'|'year'，start/end 为手动选择的起止日期（YYYY-MM-DD），
    * note 为生成前用户人工输入的补充说明（可选），
-   * items 为用户整理后的事项清单（可选；不传则后端使用自动聚合清单），
    * prompt 为自定义提示词模板（可选；不传则使用用户已保存模板或默认模板）。
+   * 生成时后端将该时间范围内的全部事件提交给 AI，由 AI 整合并合并相同/相似事件。
    * 额度不足时后端返回 429（code=REPORT_LIMIT_EXCEEDED），由调用方提示。
    */
   generateAiReport(
@@ -17,7 +17,6 @@ export const reportApi = {
     start: string,
     end: string,
     note?: string,
-    items?: ReportItem[],
     prompt?: string,
   ): Promise<ReportResult> {
     return client
@@ -26,54 +25,19 @@ export const reportApi = {
         start,
         end,
         note: note || undefined,
-        items: items && items.length > 0 ? items : undefined,
         prompt: prompt || undefined,
       })
       .then((r) => r.data);
   },
 
   /**
-   * 生成周报（周报三块区域润色模式）。
-   * work_done / next_work / help_needed 为用户整理后的三块内容，AI 负责润色。
+   * 聚合预览：按手动选择的时间范围统计事件，返回统计信息 + 全部原始事件（不消耗次数）。
+   * events 为逐条原始事件，用于前端展示「将提交给 AI 的事件清单」。
    */
-  generateWeeklyReport(
-    start: string,
-    end: string,
-    workDone: string,
-    nextWork: string,
-    helpNeeded: string,
-  ): Promise<ReportResult> {
+  getPreview(period: ReportPeriod, start: string, end: string): Promise<ReportPeriodStats> {
     return client
-      .post<ReportResult>('/api/reports/ai', {
-        period: 'week',
-        start,
-        end,
-        work_done: workDone,
-        next_work: nextWork,
-        help_needed: helpNeeded,
-      })
-      .then((r) => r.data);
-  },
-
-  /**
-   * 聚合预览：按手动选择的时间范围统计事件，返回聚合后的事项清单（不消耗次数）。
-   * 周报模式（period='week'）可传 next_start/next_end，额外返回三块区域预填数据。
-   */
-  getPreview(
-    period: ReportPeriod,
-    start: string,
-    end: string,
-    nextStart?: string,
-    nextEnd?: string,
-  ): Promise<ReportPeriodStats & Partial<WeeklyPreview>> {
-    return client
-      .get<ReportPeriodStats & Partial<WeeklyPreview>>('/api/reports/preview', {
-        params: {
-          period,
-          start,
-          end,
-          ...(nextStart && nextEnd ? { next_start: nextStart, next_end: nextEnd } : {}),
-        },
+      .get<ReportPeriodStats>('/api/reports/preview', {
+        params: { period, start, end },
       })
       .then((r) => r.data);
   },

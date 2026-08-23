@@ -127,6 +127,8 @@ export interface ReportPeriodStats {
   by_color: Record<string, { total: number; completed: number }>;
   /** 相同事件已整合：按标题合并，count 为出现次数 */
   aggregated: ReportItem[];
+  /** 该时间范围内的全部原始事件（逐条；由 AI 在生成阶段整合并合并相同/相似事件） */
+  events: ReportEvent[];
 }
 
 export interface ReportUsage {
@@ -151,12 +153,6 @@ export interface ReportEvent {
 }
 
 /** 周报三块区域预填数据（均按标题去重） */
-export interface WeeklyPreview {
-  done_titles: string[];
-  pending_titles: string[];
-  next_titles: string[];
-}
-
 export interface ReportResult {
   success: boolean;
   period: ReportPeriod;
