@@ -318,6 +318,16 @@ export default function CalendarPage() {
     return eventsData[selectedDate] || [];
   }, [eventsData, selectedDate]);
 
+  // 月视图「新增」默认日期：仅当今天落在当前显示月份内时用今天，否则用当月 1 号，
+  // 避免浏览其它月份时用「今天的日号」拼出 2026-09-31 之类的非法日期。
+  const monthViewAddDate = useMemo(() => {
+    const today = dayjs();
+    if (today.year() === currentYear && today.month() + 1 === currentMonth) {
+      return today.format('YYYY-MM-DD');
+    }
+    return `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+  }, [currentYear, currentMonth]);
+
   // Meta tooltip content
   const metaTooltipContent = (
     <div style={{ maxWidth: 280 }}>
@@ -356,7 +366,16 @@ export default function CalendarPage() {
         <Space wrap className="app-header-actions">
           <Segmented
             value={viewMode}
-            onChange={(v) => setViewMode(v as ViewMode)}
+            onChange={(v) => {
+              const mode = v as ViewMode;
+              if (mode === 'month') {
+                // 从周/日视图切回月视图时，用选中日期同步当前年月，避免显示过期月份
+                const d = dayjs(selectedDate);
+                setCurrentYear(d.year());
+                setCurrentMonth(d.month() + 1);
+              }
+              setViewMode(mode);
+            }}
             options={[
               { label: '月视图', value: 'month' },
               { label: '周视图', value: 'week' },
@@ -442,7 +461,7 @@ export default function CalendarPage() {
         size="large"
         icon={<PlusOutlined />}
         className="app-fab"
-        onClick={() => handleDayClick(viewMode === 'month' ? `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dayjs().date()).padStart(2, '0')}` : selectedDate)}
+        onClick={() => handleDayClick(viewMode === 'month' ? monthViewAddDate : selectedDate)}
         style={{
           position: 'fixed',
           right: 32,

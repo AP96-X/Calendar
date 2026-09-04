@@ -34,7 +34,8 @@ _raw_cors = os.environ.get('CALENDAR_CORS_ORIGINS', '').strip()
 if _raw_cors:
     CORS_ORIGINS = [o.strip() for o in _raw_cors.split(',') if o.strip()]
 else:
-    # 开发环境默认：允许所有来源
+    # 开发环境默认：允许所有来源（但见 app.py —— 此情况下不会开启 Allow-Credentials，
+    # 避免任意站点读取登录态；生产环境务必显式指定精确域名）
     CORS_ORIGINS = r".*"
 
 # ============================================================

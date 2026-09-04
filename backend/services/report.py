@@ -25,7 +25,7 @@ from ..config import (
     AI_REPORT_ENABLED, AI_PROVIDER, AI_API_BASE, AI_API_KEY,
     AI_MODEL, AI_TIMEOUT, AI_MAX_TOKENS, AI_MONTHLY_LIMIT,
 )
-from ..database import get_db, db_now
+from ..database import get_db, db_now, DB_TYPE
 
 _PERIOD_CN = {'week': '周', 'month': '月', 'quarter': '季度', 'year': '年度'}
 _REPORT_TITLES = {'week': '周总结', 'month': '月总结', 'quarter': '季度总结', 'year': '年度总结'}
@@ -367,7 +367,8 @@ def build_fallback_report(stats, note=''):
 
 def get_usage_payload(uid):
     """返回当月使用情况：{month, used, limit, remaining}。"""
-    month = date.today().strftime('%Y-%m')
+    # 以中国时区为准取月份，避免服务器时区跨月边界导致计数月份错位
+    month = db_now()[:7]
     db = get_db()
     row = db.execute(
         'SELECT count FROM ai_report_usage WHERE user_id = ? AND usage_month = ?',
@@ -392,22 +393,27 @@ def check_usage_available(uid):
 
 
 def consume_usage(uid):
-    """AI 成功调用后计数 +1。"""
-    month = date.today().strftime('%Y-%m')
+    """AI 成功调用后计数 +1。
+
+    使用数据库 UPSERT 原子自增，避免并发下「先 SELECT 再 UPDATE/INSERT」造成
+    丢失更新，或首次并发插入触发 UNIQUE(user_id, usage_month) 冲突。
+    """
+    month = db_now()[:7]
     db = get_db()
-    row = db.execute(
-        'SELECT count FROM ai_report_usage WHERE user_id = ? AND usage_month = ?',
-        (uid, month)
-    ).fetchone()
-    if row:
+    now = db_now()
+    if DB_TYPE == 'mysql':
         db.execute(
-            'UPDATE ai_report_usage SET count = count + 1, updated_at = ? WHERE user_id = ? AND usage_month = ?',
-            (db_now(), uid, month)
+            'INSERT INTO ai_report_usage (user_id, usage_month, count, updated_at) '
+            'VALUES (?, ?, 1, ?) '
+            'ON DUPLICATE KEY UPDATE count = count + 1, updated_at = VALUES(updated_at)',
+            (uid, month, now)
         )
     else:
         db.execute(
-            'INSERT INTO ai_report_usage (user_id, usage_month, count) VALUES (?, ?, 1)',
-            (uid, month)
+            'INSERT INTO ai_report_usage (user_id, usage_month, count, updated_at) '
+            'VALUES (?, ?, 1, ?) '
+            'ON CONFLICT(user_id, usage_month) DO UPDATE SET count = count + 1, updated_at = excluded.updated_at',
+            (uid, month, now)
         )
     db.commit()
 

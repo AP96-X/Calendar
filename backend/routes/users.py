@@ -138,7 +138,11 @@ def delete_user(user_id):
     if user['role'] == 'admin':
         return jsonify({'error': '不能删除管理员账号'}), 403
 
+    # 先删除引用该用户的关联数据，否则 user_report_prompts 的外键
+    # （user_id REFERENCES users(id)）会让 DELETE FROM users 触发 IntegrityError。
     db.execute('DELETE FROM events WHERE user_id = ?', (user_id,))
+    db.execute('DELETE FROM user_report_prompts WHERE user_id = ?', (user_id,))
+    db.execute('DELETE FROM ai_report_usage WHERE user_id = ?', (user_id,))
     db.execute('DELETE FROM users WHERE id = ?', (user_id,))
     db.commit()
     add_audit_log('delete_user', user_id, f'删除用户 {user["username"]}')

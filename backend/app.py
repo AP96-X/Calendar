@@ -25,7 +25,13 @@ app.teardown_appcontext(close_db)
 # 未设置时开发环境回退到允许所有来源 (r".*")。
 # 生产环境应在 docker-compose.yml 中指定具体域名列表：
 #   CALENDAR_CORS_ORIGINS=https://your-domain.com,https://www.your-domain.com
-CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
+# 仅当显式配置了域名白名单时才允许携带 Cookie 凭据；未配置时的通配符回退只用于
+# 开发环境，不开启凭据，防止任意跨域站点读取登录态。
+_cors_with_credentials = isinstance(CORS_ORIGINS, list)
+CORS(app, supports_credentials=_cors_with_credentials, origins=CORS_ORIGINS)
+if not _cors_with_credentials:
+    import warnings
+    warnings.warn('CALENDAR_CORS_ORIGINS 未配置，CORS 回退为允许所有来源且不携带凭据；生产环境请显式指定精确域名。', stacklevel=1)
 
 # Register blueprints
 from .routes.auth import auth_bp

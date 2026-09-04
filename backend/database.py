@@ -64,10 +64,13 @@ def get_db():
             g.db = _MySQLConnection(conn)
         else:
             import sqlite3
-            conn = sqlite3.connect(DB_PATH)
+            # timeout=10 秒：写锁竞争时等待而不是立即抛 database is locked，
+            # 缓解 gunicorn 多 worker 并发写同一 SQLite 的冲突。
+            conn = sqlite3.connect(DB_PATH, timeout=10)
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA busy_timeout=10000")
             g.db = _SQLiteConnection(conn)
     return g.db
 

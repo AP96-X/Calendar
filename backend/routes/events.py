@@ -45,6 +45,8 @@ def get_events():
     if not year or not month:
         today = datetime.now()
         year, month = today.year, today.month
+    if year < 1900 or year > 2100 or month < 1 or month > 12:
+        return jsonify({'error': 'year/month 参数无效'}), 400
 
     first_of_month = date(year, month, 1)
     grid_start = first_of_month - timedelta(days=first_of_month.weekday())
@@ -65,6 +67,11 @@ def get_day_events():
     date_str = request.args.get('date', '')
     if not date_str:
         date_str = datetime.now().strftime('%Y-%m-%d')
+    else:
+        try:
+            datetime.strptime(date_str, '%Y-%m-%d')
+        except (TypeError, ValueError):
+            return jsonify({'error': 'date 参数格式必须为 YYYY-MM-DD'}), 400
     db = get_db()
     rows = db.execute(
         'SELECT * FROM events WHERE user_id = ? AND date = ? ORDER BY time',
@@ -78,7 +85,10 @@ def get_week_events():
     uid = _require_uid()
     date_str = request.args.get('date', '')
     if date_str:
-        d = datetime.strptime(date_str, '%Y-%m-%d')
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d')
+        except (TypeError, ValueError):
+            return jsonify({'error': 'date 参数格式必须为 YYYY-MM-DD'}), 400
     else:
         d = datetime.now()
     monday = d - timedelta(days=d.weekday())
@@ -424,61 +434,74 @@ def import_events():
     if not file:
         return jsonify({'error': '请选择文件'}), 400
 
-    try:
-        wb = openpyxl.load_workbook(BytesIO(file.read()), rich_text=True)
-    except Exception:
-        return jsonify({'error': '文件格式不正确，请使用 Excel (.xlsx) 文件'}), 400
+    # 限制上传文件大小，避免 zip 炸弹 / 内存耗尽（nginx 亦有 client_max_body_size 兜底）
+    MAX_IMPORT_BYTES = 5 * 1024 * 1024  # 5MB
+    file_content = file.read(MAX_IMPORT_BYTES + 1)
+    if len(file_content) > MAX_IMPORT_BYTES:
+        return jsonify({'error': '文件过大，最大支持 5MB'}), 413
 
-    ws = wb.active
+    wb = None
     events = []  # list of (date_str, title, color, completed)
     current_year = None
     current_month = None
 
-    for row in ws.iter_rows(min_row=1):
-        if not row or len(row) < 2:
-            continue
-        a_cell = row[0]
-        a_val = a_cell.value
-        # 月份标记：支持数字 (2026.8) 和字符串 ('2026.8') 两种格式
-        a_str = str(a_val).strip() if a_val is not None else ''
-        m_month = re.match(r'^(\d{4})\.(\d{1,2})$', a_str)
-        if m_month:
-            current_year = int(m_month.group(1))
-            current_month = int(m_month.group(2))
-            continue
-        # 标题行
-        b_val = row[1].value
-        if str(b_val).strip() == '周一':
-            continue
-        if current_year is None or current_month is None:
-            continue
+    try:
+        try:
+            wb = openpyxl.load_workbook(BytesIO(file_content), rich_text=True)
+        except Exception:
+            return jsonify({'error': '文件格式不正确，请使用 Excel (.xlsx) 文件'}), 400
 
-        for col_idx in range(1, 8):
-            if col_idx >= len(row):
-                break
-            cell = row[col_idx]
-            cell_val = cell.value
-            if cell_val is None:
+        ws = wb.active
+        for row in ws.iter_rows(min_row=1):
+            if not row or len(row) < 2:
                 continue
-            cell_str = str(cell_val).strip()
-            m = re.match(r'(\d+)\s*\n?\s*[•\-\s]*(.*)', cell_str, re.DOTALL)
-            if not m:
+            a_cell = row[0]
+            a_val = a_cell.value
+            # 月份标记：支持数字 (2026.8) 和字符串 ('2026.8') 两种格式
+            a_str = str(a_val).strip() if a_val is not None else ''
+            m_month = re.match(r'^(\d{4})\.(\d{1,2})$', a_str)
+            if m_month:
+                current_year = int(m_month.group(1))
+                current_month = int(m_month.group(2))
                 continue
-            day = int(m.group(1))
-            desc_raw = m.group(2).strip()
-            if day < 1 or day > 31 or not desc_raw:
+            # 标题行
+            b_val = row[1].value
+            if str(b_val).strip() == '周一':
                 continue
-            date_str = f'{current_year:04d}-{current_month:02d}-{day:02d}'
+            if current_year is None or current_month is None:
+                continue
 
-            # 解析每个事件的文本、颜色、删除线
-            # 支持 CellRichText（多 run）和普通字符串
-            event_texts = _parse_cell_events(cell, desc_raw)
-            for title, color, completed in event_texts:
-                title = re.sub(r'\s+', ' ', title).strip()
-                if title and len(title) > 1:
-                    events.append((date_str, title[:256], color, completed))
+            for col_idx in range(1, 8):
+                if col_idx >= len(row):
+                    break
+                cell = row[col_idx]
+                cell_val = cell.value
+                if cell_val is None:
+                    continue
+                cell_str = str(cell_val).strip()
+                m = re.match(r'(\d+)\s*\n?\s*[•\-\s]*(.*)', cell_str, re.DOTALL)
+                if not m:
+                    continue
+                day = int(m.group(1))
+                desc_raw = m.group(2).strip()
+                if day < 1 or day > 31 or not desc_raw:
+                    continue
+                date_str = f'{current_year:04d}-{current_month:02d}-{day:02d}'
 
-    wb.close()
+                # 解析每个事件的文本、颜色、删除线
+                # 支持 CellRichText（多 run）和普通字符串
+                try:
+                    event_texts = _parse_cell_events(cell, desc_raw)
+                except Exception:
+                    # 单个单元格解析失败不应中断整个导入
+                    continue
+                for title, color, completed in event_texts:
+                    title = re.sub(r'\s+', ' ', title).strip()
+                    if title and len(title) > 1:
+                        events.append((date_str, title[:256], color, completed))
+    finally:
+        if wb is not None:
+            wb.close()
 
     if not events:
         return jsonify({'success': True, 'inserted': 0, 'skipped': 0, 'message': '文件中未检测到有效事件数据'})

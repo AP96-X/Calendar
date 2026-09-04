@@ -1,12 +1,14 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 
 // 中国时区（北京时间，UTC+8）：后端所有时间字段均按该时区存储与返回
 export const CN_TIMEZONE = 'Asia/Shanghai';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(customParseFormat);
 
 // 后端统一返回的存储格式：YYYY-MM-DD HH:mm:ss（中国时区）
 const CN_DATETIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
