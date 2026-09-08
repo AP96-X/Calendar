@@ -1,4 +1,4 @@
-import { Modal, Button, Space, Tag, App } from 'antd';
+import { Modal, Button, Space, Tag } from 'antd';
 import {
   EditOutlined,
   DeleteOutlined,
@@ -27,8 +27,6 @@ export default function EventDetailModal({
   onDelete,
   onToggleComplete,
 }: EventDetailModalProps) {
-  const { message } = App.useApp();
-
   if (!event) return null;
 
   const handleDelete = () => {
@@ -46,12 +44,8 @@ export default function EventDetailModal({
   };
 
   const handleToggleComplete = () => {
+    // 完成/取消完成的提示由父级 handleEventToggle 统一显示，避免重复弹出
     onToggleComplete(event.id);
-    if (event.completed) {
-      message.info('已取消完成');
-    } else {
-      message.success('已完成');
-    }
     onClose();
   };
 
