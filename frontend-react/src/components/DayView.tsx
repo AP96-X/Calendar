@@ -65,7 +65,7 @@ export default function DayView({
                 }}
                 onClick={(e) => e.stopPropagation()}
               />
-              <div style={{ width: 4, height: 40, borderRadius: 2, background: ev.color, flexShrink: 0 }} />
+              <div style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: ev.color, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="event-title" style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {ev.title}
