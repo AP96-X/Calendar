@@ -54,7 +54,7 @@ export default function DayView({
             <div
               key={ev.id}
               className={`cal-day-view-event ${ev.completed ? 'completed' : ''}`}
-              style={{ borderLeftColor: ev.color }}
+              style={{ background: ev.color, color: '#fff' }}
               onClick={() => onEventClick(ev)}
             >
               <Checkbox
@@ -65,13 +65,12 @@ export default function DayView({
                 }}
                 onClick={(e) => e.stopPropagation()}
               />
-              <div style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, background: ev.color, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="event-title" style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {ev.title}
                 </div>
                 {ev.time && (
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
                     {ev.time}
                   </div>
                 )}

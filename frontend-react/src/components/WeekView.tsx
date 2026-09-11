@@ -67,7 +67,7 @@ export default function WeekView({
             {/* Events area with padding to prevent overflow */}
             <div
               className="cal-week-body"
-              style={{ padding: '4px 4px', gap: 3, overflow: 'hidden' }}
+              style={{ padding: '4px 4px', gap: 3 }}
               onClick={() => onDayClick(dateStr)}
             >
               {events.map((ev) => (
@@ -90,7 +90,7 @@ export default function WeekView({
                     style={{ transform: 'scale(0.85)' }}
                   />
                   {ev.time && <span className="event-time" style={{ fontSize: 10, opacity: 0.8, flexShrink: 0 }}>{ev.time}</span>}
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{ev.title}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{ev.title}</span>
                 </div>
               ))}
               <div

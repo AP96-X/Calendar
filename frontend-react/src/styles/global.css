@@ -107,7 +107,6 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
 }
 
 .cal-week-col:last-child {
@@ -149,9 +148,6 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .cal-week-event.completed {
@@ -171,8 +167,6 @@ body {
   padding: 14px 16px;
   margin-bottom: 8px;
   border-radius: 6px;
-  background: #f8fafc;
-  border-left: 4px solid #4A90D9;
   cursor: pointer;
   transition: box-shadow 0.2s ease;
 }
@@ -223,19 +217,22 @@ body {
 
 /* Checkbox on colored event backgrounds - make it visible */
 .cal-mini-event .ant-checkbox-inner,
-.cal-week-event .ant-checkbox-inner {
+.cal-week-event .ant-checkbox-inner,
+.cal-day-view-event .ant-checkbox-inner {
   background-color: rgba(255, 255, 255, 0.25) !important;
   border-color: rgba(255, 255, 255, 0.6) !important;
 }
 
 .cal-mini-event .ant-checkbox-checked .ant-checkbox-inner,
-.cal-week-event .ant-checkbox-checked .ant-checkbox-inner {
+.cal-week-event .ant-checkbox-checked .ant-checkbox-inner,
+.cal-day-view-event .ant-checkbox-checked .ant-checkbox-inner {
   background-color: #fff !important;
   border-color: #fff !important;
 }
 
 .cal-mini-event .ant-checkbox-checked .ant-checkbox-inner::after,
-.cal-week-event .ant-checkbox-checked .ant-checkbox-inner::after {
+.cal-week-event .ant-checkbox-checked .ant-checkbox-inner::after,
+.cal-day-view-event .ant-checkbox-checked .ant-checkbox-inner::after {
   border-color: #27ae60 !important;
 }
 
