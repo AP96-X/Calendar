@@ -6,6 +6,44 @@ export const EVENT_COLORS = [
   '#1ABC9C', '#E67E22', '#2C3E50', '#E91E63', '#00BCD4',
 ];
 
+/** 重复规则显示文案 */
+export const RECURRENCE_LABELS: Record<string, string> = {
+  daily: '每天',
+  weekly: '每周',
+  monthly: '每月',
+  yearly: '每年',
+};
+
+/** 事件时间显示：全天 / HH:MM-HH:MM / HH:MM / 空串 */
+export function formatEventTime(ev: {
+  all_day?: boolean;
+  time?: string | null;
+  end_time?: string | null;
+}): string {
+  if (ev.all_day) return '全天';
+  const start = ev.time || '';
+  const end = ev.end_time || '';
+  if (start && end) return `${start}-${end}`;
+  return start || '';
+}
+
+/**
+ * 把事件平移到新的开始时间，并保持原时长。
+ * 超出当天（>= 24:00）时返回 null，调用方应清空结束时间。
+ */
+export function shiftEndTime(start: string, end: string, newStart: string): string | null {
+  const toMin = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const duration = toMin(end) - toMin(start);
+  const endMin = toMin(newStart) + (duration > 0 ? duration : 60);
+  if (endMin >= 24 * 60) return null;
+  const hh = String(Math.floor(endMin / 60)).padStart(2, '0');
+  const mm = String(endMin % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 // Lunar festivals list (from original app)
 const LUNAR_FESTIVALS = ['春节', '元宵节', '端午节', '七夕', '中元节', '中秋节', '重阳节', '腊八节', '除夕'];
 

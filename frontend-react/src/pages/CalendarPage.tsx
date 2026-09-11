@@ -4,6 +4,7 @@ import type { MenuProps } from 'antd';
 import {
   LeftOutlined, RightOutlined, ReloadOutlined,
   ImportOutlined, ExportOutlined, PlusOutlined, InfoCircleOutlined, RobotOutlined, DownOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AppLayout from '../components/AppLayout';
@@ -12,14 +13,17 @@ import WeekView from '../components/WeekView';
 import DayView from '../components/DayView';
 import EventModal from '../components/EventModal';
 import EventDetailModal from '../components/EventDetailModal';
+import SearchModal from '../components/SearchModal';
 import ImportModal from '../components/ImportModal';
 import ExportModal from '../components/ExportModal';
 import ReportModal from '../components/ReportModal';
 import { useAuth } from '../stores/auth';
 import { eventsApi } from '../api/events';
 import { calendarApi } from '../api/calendar';
-import { getTodayStr, getMonthLabel, getWeekLabel, getDayLabel, getWeekDates } from '../utils/calendar';
-import type { EventsByDate, CalendarMeta, CalendarEvent, ReportPeriod } from '../types';
+import { getTodayStr, getMonthLabel, getWeekLabel, getDayLabel, getWeekDates, shiftEndTime } from '../utils/calendar';
+import type {
+  EventsByDate, CalendarMeta, CalendarEvent, ReportPeriod, EventInput, EventUpdateScope,
+} from '../types';
 
 const { Text } = Typography;
 
@@ -61,6 +65,9 @@ export default function CalendarPage() {
 
   // Import modal state
   const [importModalOpen, setImportModalOpen] = useState(false);
+
+  // Search modal state
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
 
   // Export modal state
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -271,15 +278,46 @@ export default function CalendarPage() {
     }
   };
 
-  const handleEventDelete = async (eventId: number) => {
+  const handleEventDelete = async (eventId: number, scope: EventUpdateScope = 'single') => {
     try {
-      await eventsApi.delete(eventId);
-      message.success('事件已删除');
+      await eventsApi.delete(eventId, scope);
+      message.success(scope === 'series' ? '整个系列已删除' : '事件已删除');
       await fetchEvents();
     } catch {
       // handled by interceptor
     }
   };
+
+  // 拖拽事件改日期/时间（拖到时间槽时按原时长平移结束时间，避免 end_time 早于新的开始时间）
+  const handleEventDrop = async (event: CalendarEvent, newDate: string, newTime?: string) => {
+    try {
+      const payload: Partial<EventInput> = { date: newDate };
+      if (newTime !== undefined) {
+        payload.time = newTime;
+        payload.all_day = false;
+        if (event.time && event.end_time) {
+          payload.end_time = shiftEndTime(event.time, event.end_time, newTime) ?? '';
+        }
+      }
+      await eventsApi.update(event.id, payload);
+      message.success(newTime !== undefined
+        ? `已移动到 ${newDate} ${newTime}`
+        : `已移动到 ${newDate}`);
+      await fetchEvents();
+    } catch {
+      // handled by interceptor
+    }
+  };
+
+  // 搜索结果点击：跳转到该事件所在日期并打开详情
+  const handleJumpToEvent = useCallback((event: CalendarEvent) => {
+    const d = dayjs(event.date);
+    setCurrentYear(d.year());
+    setCurrentMonth(d.month() + 1);
+    setSelectedDate(event.date);
+    setDetailEvent(event);
+    setDetailModalOpen(true);
+  }, []);
 
   const handleExport = () => {
     setExportModalOpen(true);
@@ -382,6 +420,7 @@ export default function CalendarPage() {
               { label: '日视图', value: 'day' },
             ]}
           />
+          <Button icon={<SearchOutlined />} onClick={() => setSearchModalOpen(true)}>搜索</Button>
           <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
           <Dropdown
@@ -425,6 +464,7 @@ export default function CalendarPage() {
               onDayClick={handleDayClick}
               onEventClick={handleEventClick}
               onEventToggle={handleEventToggle}
+              onEventDrop={handleEventDrop}
               onWeekNumClick={(date) => switchToWeekView(date)}
               onDayNumClick={(date) => switchToDayView(date)}
             />
@@ -437,6 +477,7 @@ export default function CalendarPage() {
               onDayClick={handleDayClick}
               onEventClick={handleEventClick}
               onEventToggle={handleEventToggle}
+              onEventDrop={handleEventDrop}
               onDayHeaderClick={(date) => switchToDayView(date)}
             />
           )}
@@ -495,6 +536,13 @@ export default function CalendarPage() {
         open={importModalOpen}
         onClose={() => setImportModalOpen(false)}
         onImported={fetchEvents}
+      />
+
+      <SearchModal
+        open={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        onJump={handleJumpToEvent}
+        onToggle={handleEventToggle}
       />
 
       <ExportModal

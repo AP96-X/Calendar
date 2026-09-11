@@ -2,6 +2,7 @@
 """事件 CRUD 路由 + 导入导出"""
 
 import re
+import uuid
 import calendar as cal_mod
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -15,11 +16,22 @@ from ..auth import require_login, get_current_user_id
 
 events_bp = Blueprint('events', __name__)
 
+# 支持的四类重复规则（简化版，不含 RRULE 的复杂组合）
+RECURRENCE_RULES = ('daily', 'weekly', 'monthly', 'yearly')
+# 单个重复事件最多物化的实例数，避免「每天 + 超长结束日期」产生海量行
+MAX_RECURRENCE_INSTANCES = 400
+
 
 def _event_row(r):
     return {
         'id': r['id'], 'title': r['title'], 'date': r['date'],
-        'time': r['time'], 'color': r['color'], 'completed': bool(r['completed']),
+        'time': r['time'] or '', 'end_time': r.get('end_time') or '',
+        'all_day': bool(r.get('all_day') or 0),
+        'description': r.get('description') or '',
+        'color': r['color'], 'completed': bool(r['completed']),
+        'recurrence': r.get('recurrence') or '',
+        'recurrence_end': r.get('recurrence_end') or '',
+        'recurrence_group': r.get('recurrence_group') or '',
     }
 
 
@@ -29,6 +41,48 @@ def _require_uid():
         from flask import abort
         abort(401)
     return uid
+
+
+def _add_months(d, months):
+    """按自然月/年推进天数，日期溢出时钳制到当月最后一天（1/31 + 1月 → 2/28）。"""
+    y = d.year + (d.month - 1 + months) // 12
+    m = (d.month - 1 + months) % 12 + 1
+    last = cal_mod.monthrange(y, m)[1]
+    return date(y, m, min(d.day, last))
+
+
+def _expand_recurrence(start, rule, end):
+    """展开重复事件日期（含起始日），返回 [date, ...]。
+
+    始终以原始起始日为锚点推进（step 累加），避免 1/31 → 2/28 → 3/28 的日期漂移。
+    最多返回 MAX_RECURRENCE_INSTANCES 个实例。
+    """
+    dates = [start]
+    if rule not in RECURRENCE_RULES or end < start:
+        return dates
+    step = 0
+    while len(dates) < MAX_RECURRENCE_INSTANCES:
+        step += 1
+        if rule == 'daily':
+            cur = start + timedelta(days=step)
+        elif rule == 'weekly':
+            cur = start + timedelta(days=7 * step)
+        elif rule == 'monthly':
+            cur = _add_months(start, step)
+        else:  # yearly
+            cur = _add_months(start, step * 12)
+        if cur > end:
+            break
+        dates.append(cur)
+    return dates
+
+
+def _parse_date(value, field):
+    """解析 YYYY-MM-DD，失败抛 ValueError（由调用方转成 400）。"""
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        raise ValueError(f'{field} 参数格式必须为 YYYY-MM-DD')
 
 
 @events_bp.route('/api/events', methods=['GET'])
@@ -101,35 +155,140 @@ def get_week_events():
     return jsonify([_event_row(r) for r in rows])
 
 
+@events_bp.route('/api/events/search', methods=['GET'])
+@require_login
+def search_events():
+    """事件搜索 + 筛选。
+
+    支持参数：q（标题/备注模糊）、start/end（日期范围）、color（精确颜色）、
+    completed（'0'|'1'）、limit（默认 200，最大 1000）。
+    """
+    uid = _require_uid()
+    q = (request.args.get('q') or '').strip()
+    start = (request.args.get('start') or '').strip()
+    end = (request.args.get('end') or '').strip()
+    color = (request.args.get('color') or '').strip()
+    completed = (request.args.get('completed') or '').strip()
+    try:
+        limit = min(max(int(request.args.get('limit', 200)), 1), 1000)
+    except (TypeError, ValueError):
+        limit = 200
+
+    sql = 'SELECT * FROM events WHERE user_id = ?'
+    params = [uid]
+    if q:
+        sql += ' AND (title LIKE ? OR description LIKE ?)'
+        like = f'%{q}%'
+        params.extend([like, like])
+    if start:
+        try:
+            _parse_date(start, 'start')
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        sql += ' AND date >= ?'
+        params.append(start)
+    if end:
+        try:
+            _parse_date(end, 'end')
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        sql += ' AND date <= ?'
+        params.append(end)
+    if color:
+        sql += ' AND color = ?'
+        params.append(color)
+    if completed in ('0', '1'):
+        sql += ' AND completed = ?'
+        params.append(int(completed))
+    sql += ' ORDER BY date DESC, time LIMIT ?'
+    params.append(limit)
+
+    db = get_db()
+    rows = db.execute(sql, params).fetchall()
+    return jsonify([_event_row(r) for r in rows])
+
+
 @events_bp.route('/api/events', methods=['POST'])
 @require_login
 def create_event():
-    data = request.get_json()
-    title = data.get('title', '').strip()
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
     if not title:
         return jsonify({'error': '事件标题不能为空'}), 400
-    date_str = data.get('date', datetime.now().strftime('%Y-%m-%d'))
-    time_str = data.get('time', '')
+    date_str = data.get('date') or datetime.now().strftime('%Y-%m-%d')
+    try:
+        start_date = _parse_date(date_str, 'date')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    all_day = bool(data.get('all_day', False))
+    time_str = '' if all_day else (data.get('time') or '')
+    end_time = '' if all_day else (data.get('end_time') or '')
+    if time_str and end_time and end_time < time_str:
+        return jsonify({'error': '结束时间不能早于开始时间'}), 400
+    description = (data.get('description') or '').strip()
     color = data.get('color', '#4A90D9')
     completed = data.get('completed', False)
-    uid = get_current_user_id()
+    recurrence = (data.get('recurrence') or '').strip()
+    recurrence_end = (data.get('recurrence_end') or '').strip()
 
+    uid = get_current_user_id()
     db = get_db()
-    cur = db.execute(
-        'INSERT INTO events (user_id, title, date, time, color, completed) VALUES (?, ?, ?, ?, ?, ?)',
-        (uid, title, date_str, time_str, color, 1 if completed else 0)
+    insert_sql = (
+        'INSERT INTO events (user_id, title, date, time, end_time, all_day, description, '
+        'color, completed, recurrence, recurrence_end, recurrence_group) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
+
+    if recurrence not in RECURRENCE_RULES:
+        # 非重复事件：单条插入
+        cur = db.execute(insert_sql, (
+            uid, title, date_str, time_str, end_time, 1 if all_day else 0,
+            description, color, 1 if completed else 0, '', '', ''))
+        db.commit()
+        return jsonify({
+            'id': cur.lastrowid, 'title': title, 'date': date_str, 'time': time_str,
+            'end_time': end_time, 'all_day': all_day, 'description': description,
+            'color': color, 'completed': bool(completed),
+            'recurrence': '', 'recurrence_end': '', 'recurrence_group': '', 'count': 1,
+        }), 201
+
+    # 重复事件：展开为多个实例，共享 recurrence_group，便于「整个系列」增删改
+    if recurrence_end:
+        try:
+            end_date = _parse_date(recurrence_end, 'recurrence_end')
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+    else:
+        # 未指定结束日期时默认重复 90 天
+        end_date = start_date + timedelta(days=90)
+        recurrence_end = end_date.strftime('%Y-%m-%d')
+    if end_date < start_date:
+        return jsonify({'error': '重复结束日期不能早于开始日期'}), 400
+
+    dates = _expand_recurrence(start_date, recurrence, end_date)
+    group = uuid.uuid4().hex
+    rows = [
+        (uid, title, d.strftime('%Y-%m-%d'), time_str, end_time,
+         1 if all_day else 0, description, color, 1 if completed else 0,
+         recurrence, recurrence_end, group)
+        for d in dates
+    ]
+    db.executemany(insert_sql, rows)
     db.commit()
     return jsonify({
-        'id': cur.lastrowid, 'title': title, 'date': date_str,
-        'time': time_str, 'color': color, 'completed': completed,
+        'id': None, 'title': title, 'date': date_str, 'time': time_str,
+        'end_time': end_time, 'all_day': all_day, 'description': description,
+        'color': color, 'completed': bool(completed),
+        'recurrence': recurrence, 'recurrence_end': recurrence_end,
+        'recurrence_group': group, 'count': len(dates),
     }), 201
 
 
 @events_bp.route('/api/events/<int:event_id>', methods=['PUT'])
 @require_login
 def update_event(event_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     uid = get_current_user_id()
     db = get_db()
     existing = db.execute(
@@ -138,19 +297,46 @@ def update_event(event_id):
     if not existing:
         return jsonify({'error': '事件不存在'}), 404
 
-    title = data.get('title', existing['title']).strip()
+    title = (data.get('title', existing['title']) or '').strip()
+    if not title:
+        return jsonify({'error': '事件标题不能为空'}), 400
     date_str = data.get('date', existing['date'])
-    time_str = data.get('time', existing['time'])
+    try:
+        _parse_date(date_str, 'date')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    all_day = bool(data.get('all_day', existing.get('all_day') or 0))
+    time_str = '' if all_day else (data.get('time', existing['time']) or '')
+    end_time = '' if all_day else (data.get('end_time', existing.get('end_time')) or '')
+    if time_str and end_time and end_time < time_str:
+        return jsonify({'error': '结束时间不能早于开始时间'}), 400
+    description = (data.get('description', existing.get('description')) or '').strip()
     color = data.get('color', existing['color'])
     completed = data.get('completed', existing['completed'])
     if isinstance(completed, bool):
         completed = 1 if completed else 0
+    recurrence = (data.get('recurrence', existing.get('recurrence')) or '').strip()
+    if recurrence not in RECURRENCE_RULES:
+        recurrence = ''
+    recurrence_end = (data.get('recurrence_end', existing.get('recurrence_end')) or '').strip()
+    scope = data.get('scope', 'single')
+    group = existing.get('recurrence_group') or ''
 
-    db.execute(
-        'UPDATE events SET title=?, date=?, time=?, color=?, completed=?, updated_at=? WHERE id=?',
-        (title, date_str, time_str, color, completed,
-         db_now(), event_id)
-    )
+    if scope == 'series' and group:
+        # 整个系列：只更新共享字段，保留每个实例各自的 date（避免所有实例挤到同一天）
+        db.execute(
+            'UPDATE events SET title=?, time=?, end_time=?, all_day=?, description=?, color=?, '
+            'recurrence=?, recurrence_end=?, updated_at=? '
+            'WHERE user_id=? AND recurrence_group=?',
+            (title, time_str, end_time, 1 if all_day else 0, description, color,
+             recurrence, recurrence_end, db_now(), uid, group))
+    else:
+        db.execute(
+            'UPDATE events SET title=?, date=?, time=?, end_time=?, all_day=?, description=?, '
+            'color=?, completed=?, updated_at=? WHERE id=?',
+            (title, date_str, time_str, end_time, 1 if all_day else 0, description,
+             color, completed, db_now(), event_id))
     db.commit()
     return jsonify({'success': True})
 
@@ -179,7 +365,18 @@ def toggle_event(event_id):
 def delete_event(event_id):
     uid = get_current_user_id()
     db = get_db()
-    db.execute('DELETE FROM events WHERE id = ? AND user_id = ?', (event_id, uid))
+    # scope=series 时连同该重复系列的所有实例一起删除
+    scope = request.args.get('scope', 'single')
+    existing = db.execute(
+        'SELECT recurrence_group FROM events WHERE id = ? AND user_id = ?', (event_id, uid)
+    ).fetchone()
+    if not existing:
+        return jsonify({'error': '事件不存在'}), 404
+    group = existing.get('recurrence_group') or ''
+    if scope == 'series' and group:
+        db.execute('DELETE FROM events WHERE user_id = ? AND recurrence_group = ?', (uid, group))
+    else:
+        db.execute('DELETE FROM events WHERE id = ? AND user_id = ?', (event_id, uid))
     db.commit()
     return jsonify({'success': True})
 

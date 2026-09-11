@@ -159,25 +159,61 @@ body {
   color: #4A90D9 !important;
 }
 
-/* Day view */
-.cal-day-view-event {
+/* Day view — 全天事件 */
+.cal-day-allday {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 8px;
+  gap: 8px;
+  padding: 6px 10px;
   border-radius: 6px;
+  color: #fff;
   cursor: pointer;
   transition: box-shadow 0.2s ease;
 }
 
-.cal-day-view-event:hover {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+.cal-day-allday:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 
-.cal-day-view-event.completed .event-title {
+.cal-day-allday.completed .tl-title {
   text-decoration: line-through;
   opacity: 0.6;
+}
+
+/* Day view — 时间刻度轴上的事件方块 */
+.cal-timeline-event {
+  position: absolute;
+  border-radius: 6px;
+  color: #fff;
+  padding: 3px 6px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  z-index: 2;
+  transition: box-shadow 0.15s ease;
+}
+
+.cal-timeline-event:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  z-index: 4;
+}
+
+.cal-timeline-event.completed .tl-title {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.cal-timeline-event .tl-del {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.cal-timeline-event:hover .tl-del {
+  opacity: 0.9;
 }
 
 /* Badge styles */
@@ -218,21 +254,24 @@ body {
 /* Checkbox on colored event backgrounds - make it visible */
 .cal-mini-event .ant-checkbox-inner,
 .cal-week-event .ant-checkbox-inner,
-.cal-day-view-event .ant-checkbox-inner {
+.cal-timeline-event .ant-checkbox-inner,
+.cal-day-allday .ant-checkbox-inner {
   background-color: rgba(255, 255, 255, 0.25) !important;
   border-color: rgba(255, 255, 255, 0.6) !important;
 }
 
 .cal-mini-event .ant-checkbox-checked .ant-checkbox-inner,
 .cal-week-event .ant-checkbox-checked .ant-checkbox-inner,
-.cal-day-view-event .ant-checkbox-checked .ant-checkbox-inner {
+.cal-timeline-event .ant-checkbox-checked .ant-checkbox-inner,
+.cal-day-allday .ant-checkbox-checked .ant-checkbox-inner {
   background-color: #fff !important;
   border-color: #fff !important;
 }
 
 .cal-mini-event .ant-checkbox-checked .ant-checkbox-inner::after,
 .cal-week-event .ant-checkbox-checked .ant-checkbox-inner::after,
-.cal-day-view-event .ant-checkbox-checked .ant-checkbox-inner::after {
+.cal-timeline-event .ant-checkbox-checked .ant-checkbox-inner::after,
+.cal-day-allday .ant-checkbox-checked .ant-checkbox-inner::after {
   border-color: #27ae60 !important;
 }
 

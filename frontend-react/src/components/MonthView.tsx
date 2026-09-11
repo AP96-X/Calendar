@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Checkbox } from 'antd';
+import { SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { EventsByDate, CalendarMeta, CalendarEvent } from '../types';
 import {
@@ -18,6 +19,8 @@ interface MonthViewProps {
   onDayClick: (date: string) => void;
   onEventClick: (event: CalendarEvent) => void;
   onEventToggle: (eventId: number) => void;
+  /** 拖拽事件到其它日期（time 可选，用于周视图的时间槽） */
+  onEventDrop: (event: CalendarEvent, date: string, time?: string) => void;
   onWeekNumClick: (date: string) => void;
   onDayNumClick: (date: string) => void;
 }
@@ -33,10 +36,13 @@ export default function MonthView({
   onDayClick,
   onEventClick,
   onEventToggle,
+  onEventDrop,
   onWeekNumClick,
   onDayNumClick,
 }: MonthViewProps) {
   const gridDates = useMemo(() => getMonthGridDates(year, month), [year, month]);
+  const dragEventRef = useRef<CalendarEvent | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   // Calculate week numbers for each row
   const weekNumbers = useMemo(() => {
@@ -47,6 +53,11 @@ export default function MonthView({
     }
     return nums;
   }, [gridDates]);
+
+  const endDrag = () => {
+    dragEventRef.current = null;
+    setDragOverDate(null);
+  };
 
   return (
     <div>
@@ -116,12 +127,30 @@ export default function MonthView({
           const lunarInfo = getLunarDisplay(meta);
           const badges = getDayBadges(meta);
           const today = isToday(cell.date);
+          const isDropTarget = dragOverDate === cell.date;
 
           cells.push(
             <div
               key={cell.date}
               className={`cal-day-cell ${!cell.isCurrentMonth ? 'other-month' : ''} ${today ? 'today' : ''}`}
               onClick={() => onDayClick(cell.date)}
+              onDragOver={(e) => {
+                if (dragEventRef.current == null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (dragOverDate !== cell.date) setDragOverDate(cell.date);
+              }}
+              onDragLeave={() => {
+                if (dragOverDate === cell.date) setDragOverDate(null);
+              }}
+              onDrop={(e) => {
+                const dragged = dragEventRef.current;
+                if (dragged == null) return;
+                e.preventDefault();
+                endDrag();
+                onEventDrop(dragged, cell.date);
+              }}
+              style={isDropTarget ? { outline: '2px dashed #4A90D9', outlineOffset: -2, background: '#eef5fd' } : undefined}
             >
               {/* Day header: number + badges */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
@@ -153,6 +182,13 @@ export default function MonthView({
                     key={ev.id}
                     className={`cal-mini-event ${ev.completed ? 'completed' : ''}`}
                     style={{ background: ev.color }}
+                    draggable
+                    onDragStart={(e) => {
+                      dragEventRef.current = ev;
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(ev.id));
+                    }}
+                    onDragEnd={endDrag}
                     onClick={(e) => {
                       e.stopPropagation();
                       onEventClick(ev);
@@ -172,7 +208,7 @@ export default function MonthView({
                       } as React.CSSProperties}
                     />
                     <span className="cal-mini-text" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {ev.time && <span style={{ opacity: 0.8, marginRight: 2 }}>{ev.time}</span>}
+                      {ev.recurrence ? <SyncOutlined style={{ fontSize: 10, marginRight: 3, opacity: 0.85 }} /> : null}
                       {ev.title}
                     </span>
                   </div>

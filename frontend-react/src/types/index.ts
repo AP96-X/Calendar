@@ -14,13 +14,22 @@ export interface LoginParams {
 }
 
 // ========== Event Types ==========
+/** 重复规则：'' = 不重复 */
+export type RecurrenceRule = '' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+
 export interface CalendarEvent {
   id: number;
   title: string;
   date: string; // YYYY-MM-DD
   time: string | null; // HH:MM or null
+  end_time?: string | null; // HH:MM，可选结束时间
+  all_day?: boolean; // 全天事件
+  description?: string; // 备注
   color: string;
   completed: boolean; // backend returns bool
+  recurrence?: RecurrenceRule; // 重复规则
+  recurrence_end?: string | null; // 重复结束日期 YYYY-MM-DD
+  recurrence_group?: string | null; // 同一重复系列的共享 id
   created_at?: string;
   updated_at?: string;
 }
@@ -29,8 +38,25 @@ export interface EventInput {
   title: string;
   date: string;
   time?: string | null;
+  end_time?: string | null;
+  all_day?: boolean;
+  description?: string;
   color?: string;
   completed?: boolean;
+  recurrence?: RecurrenceRule;
+  recurrence_end?: string | null;
+}
+
+/** 重复事件的修改范围：single = 仅此事件，series = 整个系列 */
+export type EventUpdateScope = 'single' | 'series';
+
+export interface EventSearchParams {
+  q?: string;
+  start?: string;
+  end?: string;
+  color?: string;
+  completed?: '0' | '1';
+  limit?: number;
 }
 
 // Events returned as a map: { 'YYYY-MM-DD': CalendarEvent[] }

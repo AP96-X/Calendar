@@ -1,5 +1,12 @@
 import client from './client';
-import type { CalendarEvent, EventInput, EventsByDate, ApiResponse } from '../types';
+import type {
+  CalendarEvent,
+  EventInput,
+  EventUpdateScope,
+  EventSearchParams,
+  EventsByDate,
+  ApiResponse,
+} from '../types';
 
 /** Convert a flat event array to a date-keyed map */
 function toEventsByDate(events: CalendarEvent[]): EventsByDate {
@@ -32,16 +39,20 @@ export const eventsApi = {
     return client.post('/api/events', data).then((r) => r.data);
   },
 
-  update(id: number, data: Partial<EventInput>): Promise<ApiResponse> {
-    return client.put(`/api/events/${id}`, data).then((r) => r.data);
+  update(id: number, data: Partial<EventInput>, scope: EventUpdateScope = 'single'): Promise<ApiResponse> {
+    return client.put(`/api/events/${id}`, { ...data, scope }).then((r) => r.data);
   },
 
   toggle(id: number): Promise<{ completed: boolean }> {
     return client.post(`/api/events/${id}/toggle`).then((r) => r.data);
   },
 
-  delete(id: number): Promise<ApiResponse> {
-    return client.delete(`/api/events/${id}`).then((r) => r.data);
+  delete(id: number, scope: EventUpdateScope = 'single'): Promise<ApiResponse> {
+    return client.delete(`/api/events/${id}`, { params: { scope } }).then((r) => r.data);
+  },
+
+  search(params: EventSearchParams): Promise<CalendarEvent[]> {
+    return client.get<CalendarEvent[]>('/api/events/search', { params }).then((r) => r.data);
   },
 
   exportExcel(year: number, month: number): string {

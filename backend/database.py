@@ -21,9 +21,34 @@ except Exception:
 # 数据库 Schema 版本号
 # - 首次启动：无标记 → 执行完整建表 + 创建管理员 → 写入版本标记
 # - 后续启动（含重建镜像）：版本匹配 → 跳过初始化，快速启动
-# - 升级版本号：版本不匹配 → 重新执行建表（IF NOT EXISTS 安全）→ 更新版本标记
+# - 升级版本号：版本不匹配 → 重新执行建表（IF NOT EXISTS 安全）+ 增量列迁移 → 更新版本标记
 # v1.3：新增历史 UTC 时间 → 中国时区（UTC+8）数据迁移，统一所有时间字段为中国时区
-SCHEMA_VERSION = '1.3'
+# v1.4：events 新增 end_time / all_day / description / recurrence /
+#       recurrence_end / recurrence_group（事件时间范围、全天、备注、重复事件）
+SCHEMA_VERSION = '1.4'
+
+# events 表在 v1.4 新增的列：(列名, SQLite DDL, MySQL DDL)
+_EVENT_NEW_COLUMNS = (
+    ('end_time', "TEXT DEFAULT ''", "VARCHAR(10) DEFAULT ''"),
+    ('all_day', 'INTEGER NOT NULL DEFAULT 0', 'TINYINT(1) NOT NULL DEFAULT 0'),
+    ('description', "TEXT DEFAULT ''", 'TEXT'),
+    ('recurrence', "TEXT DEFAULT ''", "VARCHAR(16) DEFAULT ''"),
+    ('recurrence_end', "TEXT DEFAULT ''", "VARCHAR(10) DEFAULT ''"),
+    ('recurrence_group', "TEXT DEFAULT ''", "VARCHAR(32) DEFAULT ''"),
+)
+
+
+def _parse_version(v):
+    """将 '1.4' 解析为 (1, 4)，无法解析时返回 (0,)。"""
+    try:
+        return tuple(int(x) for x in str(v).strip().split('.'))
+    except (TypeError, ValueError):
+        return (0,)
+
+
+def _version_lt(stored, target):
+    """stored 版本是否小于 target（用于按版本执行一次性数据迁移）。"""
+    return _parse_version(stored) < _parse_version(target)
 
 # MySQL 连接池（使用 DBUtils，线程安全）
 _mysql_pool = None
@@ -192,6 +217,7 @@ def _get_sqlite_marker_path():
 def _init_sqlite():
     # 检查是否已用当前版本初始化过 → 跳过，避免重建镜像后重复执行
     marker_path = _get_sqlite_marker_path()
+    stored_version = None
     if os.path.exists(marker_path):
         with open(marker_path, 'r') as f:
             stored_version = f.read().strip()
@@ -213,13 +239,23 @@ def _init_sqlite():
     db.execute('''CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
         title TEXT NOT NULL, date TEXT NOT NULL, time TEXT DEFAULT '',
+        end_time TEXT DEFAULT '', all_day INTEGER NOT NULL DEFAULT 0,
+        description TEXT DEFAULT '',
         color TEXT DEFAULT '#4A90D9', completed INTEGER DEFAULT 0,
+        recurrence TEXT DEFAULT '', recurrence_end TEXT DEFAULT '',
+        recurrence_group TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id))''')
     try:
         db.execute("ALTER TABLE events ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1")
     except:
         pass
+    # v1.4 增量列迁移（已存在则忽略）
+    for _col, _sqlite_ddl, _mysql_ddl in _EVENT_NEW_COLUMNS:
+        try:
+            db.execute(f'ALTER TABLE events ADD COLUMN {_col} {_sqlite_ddl}')
+        except Exception:
+            pass
     db.execute('CREATE INDEX IF NOT EXISTS idx_events_date ON events(date)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id)')
     db.execute('CREATE INDEX IF NOT EXISTS idx_events_user_date ON events(user_id, date)')
@@ -265,8 +301,10 @@ def _init_sqlite():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id))''')
 
-    # 历史 UTC 时间 → 中国时区迁移（schema v1.3，仅在版本升级时执行一次）
-    _migrate_sqlite_timezone(db)
+    # 历史 UTC 时间 → 中国时区迁移（仅在从 v1.3 之前的库升级时执行一次；
+    # 若不加版本判断，v1.4 升级会再次 +8 小时导致时间二次偏移）
+    if stored_version is None or _version_lt(stored_version, '1.3'):
+        _migrate_sqlite_timezone(db)
 
     _ensure_admin(db)
     db.commit()
@@ -284,6 +322,15 @@ def _mysql_index_exists(cur, table_name, index_name):
         SELECT COUNT(*) as cnt FROM information_schema.STATISTICS
         WHERE table_schema = %s AND table_name = %s AND index_name = %s
     """, (MYSQL_DB, table_name, index_name))
+    return cur.fetchone()['cnt'] > 0
+
+
+def _mysql_column_exists(cur, table_name, column_name):
+    """检查 MySQL 列是否已存在（ALTER TABLE 增量迁移用）"""
+    cur.execute("""
+        SELECT COUNT(*) as cnt FROM information_schema.COLUMNS
+        WHERE table_schema = %s AND table_name = %s AND column_name = %s
+    """, (MYSQL_DB, table_name, column_name))
     return cur.fetchone()['cnt'] > 0
 
 
@@ -314,7 +361,8 @@ def _init_mysql():
     db.commit()
     cur.execute("SELECT `value` FROM _init_meta WHERE `key` = 'schema_version'")
     row = cur.fetchone()
-    if row and row['value'] == SCHEMA_VERSION:
+    stored_version = row['value'] if row else None
+    if stored_version == SCHEMA_VERSION:
         print(f'[INFO] 数据库已初始化 (schema v{SCHEMA_VERSION})，跳过建表')
         cur.close()
         db.close()
@@ -330,11 +378,21 @@ def _init_mysql():
     cur.execute('''CREATE TABLE IF NOT EXISTS events (
         id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL,
         title VARCHAR(256) NOT NULL, date VARCHAR(10) NOT NULL, time VARCHAR(10) DEFAULT '',
+        end_time VARCHAR(10) DEFAULT '', all_day TINYINT(1) NOT NULL DEFAULT 0,
+        description TEXT,
         color VARCHAR(7) DEFAULT '#4A90D9', completed TINYINT(1) DEFAULT 0,
+        recurrence VARCHAR(16) DEFAULT '', recurrence_end VARCHAR(10) DEFAULT '',
+        recurrence_group VARCHAR(32) DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP, INDEX idx_events_date (date), INDEX idx_events_user (user_id),
         INDEX idx_events_user_date (user_id, date),
         FOREIGN KEY (user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
+
+    # v1.4 增量列迁移（已存在则忽略），保证老库平滑升级
+    for _col, _sqlite_ddl, _mysql_ddl in _EVENT_NEW_COLUMNS:
+        if not _mysql_column_exists(cur, 'events', _col):
+            cur.execute(f'ALTER TABLE events ADD COLUMN {_col} {_mysql_ddl}')
+    db.commit()
 
     cur.execute('''CREATE TABLE IF NOT EXISTS calendar_meta (
         date VARCHAR(10) PRIMARY KEY, lunar VARCHAR(32) DEFAULT '',
@@ -379,8 +437,10 @@ def _init_mysql():
 
     db.commit()
 
-    # 历史 UTC 时间 → 中国时区迁移（schema v1.3，仅在版本升级时执行一次）
-    _migrate_mysql_timezone(cur)
+    # 历史 UTC 时间 → 中国时区迁移（仅在从 v1.3 之前的库升级时执行一次，
+    # 避免 v1.4 升级时重复偏移；见 _init_sqlite 同样处理）
+    if stored_version is None or _version_lt(stored_version, '1.3'):
+        _migrate_mysql_timezone(cur)
 
     # Ensure admin user
     cur.execute("SELECT COUNT(*) as cnt FROM users")
