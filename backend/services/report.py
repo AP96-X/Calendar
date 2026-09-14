@@ -21,11 +21,8 @@ import urllib.request
 import urllib.error
 from datetime import date, datetime, timedelta
 
-from ..config import (
-    AI_REPORT_ENABLED, AI_PROVIDER, AI_API_BASE, AI_API_KEY,
-    AI_MODEL, AI_TIMEOUT, AI_MAX_TOKENS, AI_MONTHLY_LIMIT,
-)
 from ..database import get_db, db_now, DB_TYPE
+from ..settings_store import get_ai_config
 
 _PERIOD_CN = {'week': '周', 'month': '月', 'quarter': '季度', 'year': '年度'}
 _REPORT_TITLES = {'week': '周总结', 'month': '月总结', 'quarter': '季度总结', 'year': '年度总结'}
@@ -273,12 +270,15 @@ def call_llm(prompt, max_tokens=None):
     """调用 OpenAI 兼容 /chat/completions（或 Ollama /api/chat）。
 
     返回 (text, finish_reason)；失败抛异常。finish_reason='length' 表示输出被截断。
+    AI 配置在每次调用时实时读取，管理员在管理页修改后立即生效。
     """
-    mt = max_tokens or AI_MAX_TOKENS
-    if AI_PROVIDER == 'ollama':
-        url = f'{AI_API_BASE}/api/chat'
+    cfg = get_ai_config()
+    mt = max_tokens or cfg['max_tokens']
+    provider = cfg['provider']
+    if provider == 'ollama':
+        url = f"{cfg['api_base']}/api/chat"
         payload = {
-            'model': AI_MODEL,
+            'model': cfg['model'],
             'messages': [
                 {'role': 'system', 'content': '你是一个专业的中文日程总结助手。'},
                 {'role': 'user', 'content': prompt},
@@ -288,9 +288,9 @@ def call_llm(prompt, max_tokens=None):
         }
         headers = {'Content-Type': 'application/json'}
     else:
-        url = f'{AI_API_BASE}/chat/completions'
+        url = f"{cfg['api_base']}/chat/completions"
         payload = {
-            'model': AI_MODEL,
+            'model': cfg['model'],
             'messages': [
                 {'role': 'system', 'content': '你是一个专业的中文日程总结助手。'},
                 {'role': 'user', 'content': prompt},
@@ -300,20 +300,20 @@ def call_llm(prompt, max_tokens=None):
         }
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {AI_API_KEY}',
+            'Authorization': f"Bearer {cfg['api_key']}",
         }
 
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers=headers, method='POST')
     try:
-        with urllib.request.urlopen(req, timeout=AI_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=cfg['timeout']) as resp:
             body = json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         raise RuntimeError(f'AI 服务返回 {e.code}: {e.read().decode("utf-8", "ignore")[:200]}') from e
     except urllib.error.URLError as e:
         raise RuntimeError(f'AI 服务连接失败: {e.reason}') from e
 
-    if AI_PROVIDER == 'ollama':
+    if provider == 'ollama':
         # Ollama /api/chat 返回 {"message": {"content": ...}, "done_reason": ...}
         try:
             text = body['message']['content'].strip()
@@ -375,11 +375,12 @@ def get_usage_payload(uid):
         (uid, month)
     ).fetchone()
     used = row['count'] if row else 0
-    remaining = max(0, AI_MONTHLY_LIMIT - used)
+    limit = get_ai_config()['monthly_limit']
+    remaining = max(0, limit - used)
     return {
         'month': month,
         'used': used,
-        'limit': AI_MONTHLY_LIMIT,
+        'limit': limit,
         'remaining': remaining,
     }
 
@@ -430,7 +431,7 @@ def generate_report(uid, period, start=None, end=None, note='', user=None, offse
     if not ok:
         return {
             'success': False,
-            'error': f'本月 AI 报告次数已用完（{AI_MONTHLY_LIMIT} 次），下月自动恢复',
+            'error': f'本月 AI 报告次数已用完（{usage["limit"]} 次），下月自动恢复',
             'code': 'REPORT_LIMIT_EXCEEDED',
             'usage': usage,
         }, 429
@@ -442,7 +443,8 @@ def generate_report(uid, period, start=None, end=None, note='', user=None, offse
     ai_error = None
     truncated = False
 
-    if AI_REPORT_ENABLED and AI_API_KEY:
+    ai_cfg = get_ai_config()
+    if ai_cfg['enabled'] and ai_cfg['api_key']:
         try:
             if user is None:
                 db = get_db()
@@ -453,11 +455,11 @@ def generate_report(uid, period, start=None, end=None, note='', user=None, offse
             markdown, finish = call_llm(prompt)
             if finish == 'length':
                 # 输出被截断：用更大的 max_tokens 重试一次，仍截断则保留并标记
-                markdown, finish = call_llm(prompt, max_tokens=min(AI_MAX_TOKENS * 2, 8192))
+                markdown, finish = call_llm(prompt, max_tokens=min(ai_cfg['max_tokens'] * 2, 8192))
             truncated = finish == 'length'
             if truncated:
                 markdown = markdown.rstrip() + '\n\n> ⚠️ 提示：AI 输出超过生成长度上限被截断，可调大 AI_MAX_TOKENS 后重新生成。'
-            model = AI_MODEL
+            model = ai_cfg['model']
             degraded = False
             # 仅 AI 成功调用计数，降级报告不消耗次数
             consume_usage(uid)

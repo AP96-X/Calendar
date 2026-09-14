@@ -3,7 +3,7 @@
 
 import bcrypt
 from flask import Blueprint, request, jsonify, session
-from ..database import get_db
+from ..database import get_db, to_cn_str
 from ..auth import check_login_attempts, record_login_attempt
 
 auth_bp = Blueprint('auth', __name__)
@@ -20,7 +20,7 @@ def auth_status():
             'username': user['username'],
             'display_name': user['display_name'] or user['username'],
             'role': user['role'],
-            'created_at': user['created_at'],
+            'created_at': to_cn_str(user['created_at']),
         })
     return jsonify({'logged_in': False})
 

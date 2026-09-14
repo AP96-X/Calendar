@@ -27,7 +27,8 @@
 ### 用户与权限
 
 - **多用户隔离** — 每个用户独立管理自己的事件
-- **管理员面板** — 用户管理、审计日志、登录日志三个独立入口
+- **管理员面板** — 用户管理、系统设置、审计日志、登录日志四个独立入口
+- **系统设置** — 管理员登录后可在「管理 → 系统设置」中直接配置 AI 报告（开关、服务类型、API 地址/Key、模型、超时、生成长度、每月次数上限）与备案信息（ICP 备案号、公安备案号）；设置保存在数据库中并立即生效，`.env` 仅作为默认值兜底
 - **登录安全** — bcrypt 密码哈希、15 分钟内 5 次失败临时锁定
 - **审计日志** — 管理员操作（创建/删除/修改用户/重置密码）全程记录
 - **登录日志** — 最近 100 条登录记录（时间、用户名、IP、成功/失败）
@@ -95,6 +96,7 @@ calendar-app/
 │   ├── config.py               # 配置中心（环境变量驱动的 DB 切换）
 │   ├── database.py             # 统一数据库适配层（SQLite / MySQL）+ schema 版本管理
 │   ├── auth.py                 # 认证（装饰器、登录限制、审计日志）
+│   ├── settings_store.py       # 运行时设置（管理员配置，DB 优先 + 环境变量兜底）
 │   ├── routes/                 # API 路由蓝图
 │   │   ├── auth.py            # /api/auth/*         登录/登出/状态
 │   │   ├── events.py          # /api/events/*       事件 CRUD + 导入导出 + 模板生成
@@ -103,6 +105,7 @@ calendar-app/
 │   │   ├── profile.py         # /api/profile/*      个人信息/密码
 │   │   ├── audit.py           # /api/audit-log + /api/logins  审计+登录日志
 │   │   ├── site.py            # /api/site/info      备案信息
+│   │   ├── settings.py        # /api/admin/settings 系统设置（管理员）
 │   │   └── report.py          # /api/reports/ai + preview + usage  AI 总结（周/月/季/年度）
 │   └── services/               # 纯业务逻辑
 │       ├── lunar.py           # 农历换算
@@ -129,6 +132,7 @@ calendar-app/
         │   ├── users.ts        # 用户管理 API
         │   ├── profile.ts      # 个人信息 API
         │   ├── audit.ts        # 审计日志 API
+        │   ├── settings.ts     # 系统设置 API（管理员）
         │   └── report.ts       # AI 总结 API（生成/聚合预览/次数）
         ├── stores/auth.tsx     # 认证状态管理（React Context）
         ├── utils/calendar.ts   # 日历工具函数（农历/节气/徽章/节日映射）
@@ -302,6 +306,8 @@ set CALENDAR_MYSQL_DB=calendar
 | `/api/users/<id>/reset-password` | POST | 管理员 | 重置密码 |
 | `/api/audit-log` | GET | 管理员 | 审计日志 |
 | `/api/logins` | GET | 管理员 | 登录日志 |
+| `/api/admin/settings` | GET/PUT | 管理员 | 读取/保存系统设置（AI 报告 + 备案信息；API Key 只写不回显） |
+| `/api/admin/settings/reset` | POST | 管理员 | 恢复默认设置（删除数据库覆盖值，回落 `.env` / 内置默认） |
 | `/api/reports/ai` | POST | 是 | AI 总结（period=week\|month\|quarter\|year，start/end 手动起止日期，note 补充说明，prompt 自定义提示词模板；后端取该范围全部事件交由 AI，由 AI 整合并合并相同/相似事件） |
 | `/api/reports/preview` | GET | 是 | 聚合预览：按时间范围统计事件并返回统计信息 + 全部原始事件 events（不消耗次数；相同/相似事件的合并由 AI 在生成阶段完成） |
 | `/api/reports/prompt` | GET/PUT | 是 | 获取/保存个人自定义提示词模板（GET 返回 default_prompt + custom_prompt；PUT 传空字符串恢复默认） |
@@ -309,7 +315,10 @@ set CALENDAR_MYSQL_DB=calendar
 
 ## AI 报告配置
 
-AI 报告通过环境变量配置（详见 `.env.example`），未配置 `AI_API_KEY` 时自动降级为统计型报告：
+AI 报告有两种配置方式，**数据库设置优先于环境变量**：
+
+1. **管理页面（推荐）** — 管理员登录后进入「管理 → 系统设置」，可修改开关、服务类型、API 地址、API Key、模型、超时、生成长度与每用户每月次数上限，以及 ICP / 公安备案号。保存后立即生效，无需重启容器；可一键「恢复默认」。
+2. **环境变量（部署默认值）** — 未在管理页面配置时使用（详见 `.env.example`）。未配置 `AI_API_KEY` 时自动降级为统计型报告：
 
 ```bash
 AI_REPORT_ENABLED=1                 # 开关
@@ -319,7 +328,10 @@ AI_API_KEY=sk-xxx                   # API Key（Ollama 可留空）
 AI_MODEL=deepseek-chat              # 模型名
 AI_TIMEOUT=60                       # 请求超时（秒）
 AI_MAX_TOKENS=4096                  # 最大生成长度（输出被截断时调大，后端会自动重试一次）
+AI_MONTHLY_LIMIT=20                 # 每用户每月 AI 报告次数上限
 ```
+
+> 说明：`SECRET_KEY`、`ADMIN_DEFAULT_PASSWORD`、数据库连接等属于部署/引导类配置，只能在环境变量中设置，不提供页面配置。
 
 
 ## 浏览器支持

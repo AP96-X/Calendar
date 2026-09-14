@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Tabs, Table, Button, Form, Input, Select, Tag, Space, Modal, App, Spin } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Card, Tabs, Table, Button, Form, Input, InputNumber, Select, Switch, Tag, Space, Modal, Alert, Divider, App, Spin } from 'antd';
+import { PlusOutlined, ReloadOutlined, SaveOutlined, UndoOutlined } from '@ant-design/icons';
 import AppLayout from '../components/AppLayout';
 import { usersApi } from '../api/users';
 import { auditApi } from '../api/audit';
+import { settingsApi } from '../api/settings';
 import { passwordValidator, passwordStrengthError } from '../utils/password';
 import { formatCnTime } from '../utils/time';
 import type { User, AuditLog, LoginLog } from '../types';
@@ -22,6 +23,13 @@ export default function AdminPage() {
   // Logs state
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loginLogs, setLoginLogs] = useState<LoginLog[]>([]);
+
+  // System settings state
+  const [settingsForm] = Form.useForm();
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [customized, setCustomized] = useState<Record<string, boolean>>({});
+  const [apiKeySet, setApiKeySet] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -59,11 +67,79 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    try {
+      const data = await settingsApi.get();
+      const values = data.values || {};
+      setCustomized(data.customized || {});
+      setApiKeySet(Boolean(values.AI_API_KEY_set));
+      settingsForm.setFieldsValue({
+        AI_REPORT_ENABLED: Boolean(values.AI_REPORT_ENABLED),
+        AI_PROVIDER: values.AI_PROVIDER,
+        AI_API_BASE: values.AI_API_BASE,
+        AI_API_KEY: '',
+        AI_MODEL: values.AI_MODEL,
+        AI_TIMEOUT: values.AI_TIMEOUT,
+        AI_MAX_TOKENS: values.AI_MAX_TOKENS,
+        AI_MONTHLY_LIMIT: values.AI_MONTHLY_LIMIT,
+        ICP_NUMBER: values.ICP_NUMBER,
+        PUBLIC_SECURITY_NUMBER: values.PUBLIC_SECURITY_NUMBER,
+      });
+    } catch {
+      // handled by interceptor
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, [settingsForm]);
+
   useEffect(() => {
     if (activeTab === 'users') loadUsers();
     else if (activeTab === 'audit') loadAuditLogs();
     else if (activeTab === 'login') loadLoginLogs();
-  }, [activeTab, loadUsers, loadAuditLogs, loadLoginLogs]);
+    else if (activeTab === 'settings') loadSettings();
+  }, [activeTab, loadUsers, loadAuditLogs, loadLoginLogs, loadSettings]);
+
+  const handleSaveSettings = async (values: Record<string, unknown>) => {
+    setSavingSettings(true);
+    try {
+      const res = await settingsApi.update(values);
+      if (res.success !== false) {
+        message.success('系统设置已保存');
+        await loadSettings();
+      }
+    } catch {
+      // handled by interceptor
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleResetSettings = () => {
+    Modal.confirm({
+      title: '恢复默认设置',
+      content: '将清除管理页面保存的全部设置，回落到 .env 环境变量或内置默认值。是否继续？',
+      okText: '恢复默认',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await settingsApi.reset();
+          message.success('已恢复默认设置');
+          await loadSettings();
+        } catch {
+          // handled by interceptor
+        }
+      },
+    });
+  };
+
+  const renderSettingLabel = (key: string, text: string) => (
+    <Space size={6}>
+      <span>{text}</span>
+      {customized[key] && <Tag color="blue">已自定义</Tag>}
+    </Space>
+  );
 
   const handleCreate = async (values: { username: string; password: string; display_name: string; role: string }) => {
     setCreating(true);
@@ -289,6 +365,108 @@ export default function AdminPage() {
                     pagination={{ pageSize: 20, showSizeChanger: false }}
                     scroll={{ x: 500 }}
                   />
+                </Spin>
+              ),
+            },
+            {
+              key: 'settings',
+              label: '系统设置',
+              children: (
+                <Spin spinning={settingsLoading}>
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="本页设置保存在数据库中并立即生效，优先于 .env 环境变量；未自定义的项回落到环境变量或内置默认值。"
+                  />
+                  <Form
+                    form={settingsForm}
+                    layout="vertical"
+                    onFinish={handleSaveSettings}
+                    style={{ maxWidth: 560 }}
+                  >
+                    <Divider titlePlacement="left" style={{ marginTop: 0 }}>AI 周报 / 月报</Divider>
+                    <Form.Item
+                      name="AI_REPORT_ENABLED"
+                      label={renderSettingLabel('AI_REPORT_ENABLED', '启用 AI 报告')}
+                      valuePropName="checked"
+                      extra="关闭后所有报告自动降级为统计型报告"
+                    >
+                      <Switch checkedChildren="启用" unCheckedChildren="关闭" />
+                    </Form.Item>
+                    <Form.Item name="AI_PROVIDER" label={renderSettingLabel('AI_PROVIDER', '服务类型')}>
+                      <Select
+                        options={[
+                          { value: 'openai-compatible', label: 'OpenAI 兼容协议（OpenAI / DeepSeek / 通义等）' },
+                          { value: 'ollama', label: '本地 Ollama' },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="AI_API_BASE"
+                      label={renderSettingLabel('AI_API_BASE', 'API 地址')}
+                      extra="结尾不带 /v1，例如 https://api.deepseek.com/v1"
+                      rules={[{
+                        validator: (_, value: string) =>
+                          (!value || /^https?:\/\//i.test(value))
+                            ? Promise.resolve()
+                            : Promise.reject(new Error('必须以 http:// 或 https:// 开头')),
+                      }]}
+                    >
+                      <Input placeholder="https://api.openai.com/v1" />
+                    </Form.Item>
+                    <Form.Item
+                      name="AI_API_KEY"
+                      label={renderSettingLabel('AI_API_KEY', 'API Key')}
+                      extra={apiKeySet ? '已配置：留空表示不修改，输入新值可覆盖' : 'Ollama 可留空'}
+                    >
+                      <Input.Password
+                        placeholder={apiKeySet ? '••••••••（留空不修改）' : '输入 API Key'}
+                        autoComplete="new-password"
+                      />
+                    </Form.Item>
+                    <Form.Item name="AI_MODEL" label={renderSettingLabel('AI_MODEL', '模型名')}>
+                      <Input placeholder="gpt-4o-mini / deepseek-chat / qwen-plus / llama3.1" />
+                    </Form.Item>
+                    <Space size={16} align="start" wrap>
+                      <Form.Item name="AI_TIMEOUT" label={renderSettingLabel('AI_TIMEOUT', '请求超时（秒）')}>
+                        <InputNumber min={1} max={600} style={{ width: 160 }} />
+                      </Form.Item>
+                      <Form.Item name="AI_MAX_TOKENS" label={renderSettingLabel('AI_MAX_TOKENS', '最大生成长度')}>
+                        <InputNumber min={256} max={32768} step={256} style={{ width: 160 }} />
+                      </Form.Item>
+                      <Form.Item name="AI_MONTHLY_LIMIT" label={renderSettingLabel('AI_MONTHLY_LIMIT', '每用户每月次数')}>
+                        <InputNumber min={0} max={100000} style={{ width: 160 }} />
+                      </Form.Item>
+                    </Space>
+
+                    <Divider titlePlacement="left">备案信息</Divider>
+                    <Form.Item name="ICP_NUMBER" label={renderSettingLabel('ICP_NUMBER', 'ICP 备案号')}>
+                      <Input placeholder="如：京ICP备XXXXXXXX号-X" />
+                    </Form.Item>
+                    <Form.Item
+                      name="PUBLIC_SECURITY_NUMBER"
+                      label={renderSettingLabel('PUBLIC_SECURITY_NUMBER', '公安备案号')}
+                    >
+                      <Input placeholder="如：京公网安备 XXXXXXXXXXXX号" />
+                    </Form.Item>
+
+                    <Form.Item>
+                      <Space>
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          loading={savingSettings}
+                          icon={<SaveOutlined />}
+                        >
+                          保存设置
+                        </Button>
+                        <Button danger icon={<UndoOutlined />} onClick={handleResetSettings}>
+                          恢复默认
+                        </Button>
+                      </Space>
+                    </Form.Item>
+                  </Form>
                 </Spin>
               ),
             },

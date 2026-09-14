@@ -3,7 +3,7 @@
 
 import bcrypt
 from flask import Blueprint, request, jsonify
-from ..database import get_db, db_now
+from ..database import get_db, db_now, to_cn_str
 from ..auth import require_admin, get_current_user, add_audit_log, validate_password_strength
 
 users_bp = Blueprint('users', __name__)
@@ -22,7 +22,7 @@ def list_users():
             'id': r['id'], 'username': r['username'],
             'display_name': r['display_name'] or r['username'],
             'role': r['role'], 'enabled': bool(r['enabled']),
-            'created_at': r['created_at'], 'updated_at': r['updated_at'],
+            'created_at': to_cn_str(r['created_at']), 'updated_at': to_cn_str(r['updated_at']),
         })
     return jsonify(users)
 

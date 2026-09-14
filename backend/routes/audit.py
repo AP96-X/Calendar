@@ -2,7 +2,7 @@
 """审计日志 & 登录日志路由"""
 
 from flask import Blueprint, jsonify
-from ..database import get_db
+from ..database import get_db, to_cn_str
 from ..auth import require_admin
 
 audit_bp = Blueprint('audit', __name__)
@@ -24,7 +24,7 @@ def get_audit_log():
         logs.append({
             'id': r['id'], 'admin': r['admin_username'],
             'action': r['action'], 'target': r['target_username'] or '',
-            'details': r['details'], 'created_at': r['created_at'],
+            'details': r['details'], 'created_at': to_cn_str(r['created_at']),
         })
     return jsonify(logs)
 
@@ -43,7 +43,7 @@ def get_login_log():
             'id': r['id'],
             'ip_address': r['ip_address'],
             'username': r['username'],
-            'attempted_at': r['attempted_at'],
+            'attempted_at': to_cn_str(r['attempted_at']),
             'success': bool(r['success']),
         })
     return jsonify(logs)

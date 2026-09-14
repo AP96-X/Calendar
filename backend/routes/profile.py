@@ -3,7 +3,7 @@
 
 import bcrypt
 from flask import Blueprint, request, jsonify
-from ..database import get_db, db_now
+from ..database import get_db, db_now, to_cn_str
 from ..auth import require_login, get_current_user, validate_password_strength
 
 profile_bp = Blueprint('profile', __name__)
@@ -17,7 +17,7 @@ def get_profile():
         'id': user['id'], 'username': user['username'],
         'display_name': user['display_name'] or user['username'],
         'role': user['role'],
-        'created_at': user['created_at'], 'updated_at': user['updated_at'],
+        'created_at': to_cn_str(user['created_at']), 'updated_at': to_cn_str(user['updated_at']),
     })
 
 

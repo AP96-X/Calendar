@@ -42,6 +42,7 @@ from .routes.profile import profile_bp
 from .routes.audit import audit_bp
 from .routes.site import site_bp
 from .routes.report import report_bp
+from .routes.settings import settings_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(events_bp)
@@ -51,6 +52,7 @@ app.register_blueprint(profile_bp)
 app.register_blueprint(audit_bp)
 app.register_blueprint(site_bp)
 app.register_blueprint(report_bp)
+app.register_blueprint(settings_bp)
 
 
 @app.route('/')

@@ -3,7 +3,7 @@
 
 import os
 import secrets
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
 import bcrypt
@@ -25,7 +25,8 @@ except Exception:
 # v1.3：新增历史 UTC 时间 → 中国时区（UTC+8）数据迁移，统一所有时间字段为中国时区
 # v1.4：events 新增 end_time / all_day / description / recurrence /
 #       recurrence_end / recurrence_group（事件时间范围、全天、备注、重复事件）
-SCHEMA_VERSION = '1.4'
+# v1.5：新增 site_settings 表（管理员在管理页面配置 AI 报告与备案信息）
+SCHEMA_VERSION = '1.5'
 
 # events 表在 v1.4 新增的列：(列名, SQLite DDL, MySQL DDL)
 _EVENT_NEW_COLUMNS = (
@@ -108,6 +109,26 @@ def now_cn():
 def db_now():
     """返回当前时间字符串（中国时区），兼容 SQLite / MySQL"""
     return now_cn().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def to_cn_str(value):
+    """把数据库返回的时间值统一成 'YYYY-MM-DD HH:mm:ss'（中国时区）字符串。
+
+    SQLite 的时间列直接返回字符串；MySQL(pymysql) 返回 datetime/date 对象，
+    若原样交给 Flask 会被序列化成 RFC 822（如 'Sat, 08 Sep 2026 00:05:52 GMT'），
+    前端的中文格式化会因无法识别而原样显示。此处统一转换，保证两种数据库一致。
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(TIMEZONE).replace(tzinfo=None)
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    if isinstance(value, date):
+        return value.strftime('%Y-%m-%d')
+    return str(value)
 
 
 # ==================== SQLite 连接包装 ====================
@@ -301,6 +322,12 @@ def _init_sqlite():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id))''')
 
+    # 站点设置（管理员在管理页面维护的运行时配置：AI 报告、备案信息等）
+    db.execute('''CREATE TABLE IF NOT EXISTS site_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
     # 历史 UTC 时间 → 中国时区迁移（仅在从 v1.3 之前的库升级时执行一次；
     # 若不加版本判断，v1.4 升级会再次 +8 小时导致时间二次偏移）
     if stored_version is None or _version_lt(stored_version, '1.3'):
@@ -434,6 +461,13 @@ def _init_mysql():
         prompt_template TEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
+
+    # 站点设置（管理员在管理页面维护的运行时配置：AI 报告、备案信息等）
+    cur.execute('''CREATE TABLE IF NOT EXISTS site_settings (
+        `key` VARCHAR(64) PRIMARY KEY,
+        `value` TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4''')
 
     db.commit()
 
