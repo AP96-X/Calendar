@@ -17,9 +17,13 @@ interface DayViewProps {
 
 const HOUR_HEIGHT = 56; // 每小时对应的像素高度
 const MIN_EVENT_HEIGHT = 26; // 事件方块最小高度
+const MIN_EVENT_HEIGHT_WITH_NOTE = 46; // 有备注时的最小高度：容纳标题 + 一行备注
 const MIN_DURATION = 30; // 最短显示时长（分钟）
 const DEFAULT_DURATION = 60; // 未填结束时间时的默认时长（分钟）
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+// 全天 / 未设置时间的事件在时间轴上占用的时段（08:30 ~ 17:30）
+const ALL_DAY_START = 8 * 60 + 30;
+const ALL_DAY_END = 17 * 60 + 30;
 
 function toMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -45,22 +49,24 @@ export default function DayView({
   const badges = getDayBadges(meta);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 全天 / 未设置时间的事件置顶；其余按时间落到刻度轴上
-  const { allDayEvents, laidOut, laneCount } = useMemo(() => {
-    const allDay = events.filter((e) => e.all_day || !e.time);
-    const timed = events
-      .filter((e) => !e.all_day && !!e.time)
+  // 全天 / 未设置时间的事件统一按 08:30~17:30 落到时间轴上；其余按实际时间定位
+  const { laidOut, laneCount } = useMemo(() => {
+    const items = events
       .map((e) => {
+        const allDay = !!e.all_day || !e.time;
+        if (allDay) {
+          return { ev: e, start: ALL_DAY_START, end: ALL_DAY_END, allDay };
+        }
         const start = toMinutes(e.time as string);
         const rawEnd = e.end_time ? toMinutes(e.end_time) : start + DEFAULT_DURATION;
         const end = Math.max(rawEnd, start + MIN_DURATION);
-        return { ev: e, start, end };
+        return { ev: e, start, end, allDay };
       })
       .sort((a, b) => a.start - b.start || a.end - b.end);
 
     // 正常情况下同一天不会有时间重叠，这里做泳道兜底（数据异常时并排显示而不是叠在一起）
     const laneEnds: number[] = [];
-    const laid = timed.map((it) => {
+    const laid = items.map((it) => {
       let lane = laneEnds.findIndex((end) => end <= it.start);
       if (lane === -1) {
         lane = laneEnds.length;
@@ -71,7 +77,7 @@ export default function DayView({
       return { ...it, lane };
     });
 
-    return { allDayEvents: allDay, laidOut: laid, laneCount: Math.max(1, laneEnds.length) };
+    return { laidOut: laid, laneCount: Math.max(1, laneEnds.length) };
   }, [events]);
 
   const firstStart = laidOut.length > 0 ? laidOut[0].start : null;
@@ -127,43 +133,6 @@ export default function DayView({
         </Empty>
       ) : (
         <>
-          {/* 全天 / 未设置时间事件 */}
-          {allDayEvents.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>全天</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {allDayEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className={`cal-day-allday ${ev.completed ? 'completed' : ''}`}
-                    style={{ background: ev.color }}
-                    onClick={() => onEventClick(ev)}
-                  >
-                    <Checkbox
-                      checked={ev.completed}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onEventToggle(ev.id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    {ev.recurrence ? (
-                      <Tooltip title={`重复：${RECURRENCE_LABELS[ev.recurrence] || ev.recurrence}`}>
-                        <SyncOutlined style={{ fontSize: 12, opacity: 0.85 }} />
-                      </Tooltip>
-                    ) : null}
-                    <span className="tl-title" style={{ fontSize: 14, fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ev.title}
-                    </span>
-                    {ev.time && ev.end_time ? (
-                      <span style={{ fontSize: 12, opacity: 0.85, flexShrink: 0 }}>{ev.time}-{ev.end_time}</span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* 时间刻度轴 */}
           <div
             ref={scrollRef}
@@ -218,10 +187,13 @@ export default function DayView({
                 )}
 
                 {/* 事件方块 */}
-                {laidOut.map(({ ev, start, end, lane }) => {
+                {laidOut.map(({ ev, start, end, lane, allDay }) => {
                   const widthPct = 100 / laneCount;
                   const top = (start / 60) * HOUR_HEIGHT;
-                  const height = Math.max(((end - start) / 60) * HOUR_HEIGHT, MIN_EVENT_HEIGHT);
+                  const height = Math.max(
+                    ((end - start) / 60) * HOUR_HEIGHT,
+                    ev.description ? MIN_EVENT_HEIGHT_WITH_NOTE : MIN_EVENT_HEIGHT,
+                  );
                   return (
                     <div
                       key={ev.id}
@@ -246,7 +218,7 @@ export default function DayView({
                           style={{ transform: 'scale(0.8)', flexShrink: 0 }}
                         />
                         <span style={{ fontSize: 11, opacity: 0.9, flexShrink: 0 }}>
-                          {hhmm(start)}{ev.end_time ? `-${hhmm(end)}` : ''}
+                          {hhmm(start)}{allDay || ev.end_time ? `-${hhmm(end)}` : ''}
                         </span>
                         {ev.recurrence ? (
                           <Tooltip title={`重复：${RECURRENCE_LABELS[ev.recurrence] || ev.recurrence}`}>
@@ -257,8 +229,8 @@ export default function DayView({
                           {ev.title}
                         </span>
                       </div>
-                      {ev.description && height >= 46 ? (
-                        <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {ev.description ? (
+                        <div className="tl-desc" style={{ fontSize: 11, lineHeight: '15px', opacity: 0.85, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                           {ev.description}
                         </div>
                       ) : null}
