@@ -103,7 +103,7 @@ export default function SearchModal({ open, onClose, onJump, onToggle }: SearchM
           </Button>
         </Space>
 
-        <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+        <div style={{ fontSize: 12, color: 'var(--cal-text-3)' }}>
           共 {results.length} 条结果{results.length >= 200 ? '（已达上限，请缩小范围）' : ''}
         </div>
 
@@ -134,7 +134,7 @@ export default function SearchModal({ open, onClose, onJump, onToggle }: SearchM
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: ev.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: '#6b7280', flexShrink: 0 }}>{ev.date}</span>
+                      <span style={{ fontSize: 13, color: 'var(--cal-text-2)', flexShrink: 0 }}>{ev.date}</span>
                       {formatEventTime(ev) && (
                         <Tag icon={<ClockCircleOutlined />} color="default" style={{ marginInlineEnd: 0 }}>
                           {formatEventTime(ev)}
@@ -159,7 +159,7 @@ export default function SearchModal({ open, onClose, onJump, onToggle }: SearchM
                         </Tag>
                       ) : null}
                       {ev.description ? (
-                        <span style={{ fontSize: 12, color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 12, color: 'var(--cal-text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {ev.description}
                         </span>
                       ) : null}

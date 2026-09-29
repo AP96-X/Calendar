@@ -101,7 +101,7 @@ export default function EventDetailModal({
             <Button
               icon={event.completed ? <UndoOutlined /> : <CheckOutlined />}
               onClick={handleToggleComplete}
-              style={event.completed ? { color: '#e74c3c' } : { color: '#27ae60' }}
+              style={event.completed ? { color: 'var(--cal-danger)' } : { color: 'var(--cal-ok)' }}
             >
               {event.completed ? '取消完成' : '标记完成'}
             </Button>
@@ -153,7 +153,7 @@ export default function EventDetailModal({
       {/* Detail rows */}
       <div
         style={{
-          background: '#f8fafc',
+          background: 'var(--cal-surface-2)',
           borderRadius: 8,
           padding: '14px 16px',
           display: 'flex',
@@ -163,8 +163,8 @@ export default function EventDetailModal({
       >
         {/* Date */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <CalendarOutlined style={{ color: '#6b7280', fontSize: 15 }} />
-          <span style={{ color: '#6b7280', fontSize: 13, minWidth: 36 }}>日期</span>
+          <CalendarOutlined style={{ color: 'var(--cal-text-2)', fontSize: 15 }} />
+          <span style={{ color: 'var(--cal-text-2)', fontSize: 13, minWidth: 36 }}>日期</span>
           <span style={{ fontSize: 14, fontWeight: 500 }}>
             {eventDate.format('YYYY年MM月DD日')} {weekdayStr}
           </span>
@@ -172,8 +172,8 @@ export default function EventDetailModal({
 
         {/* Time */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <ClockCircleOutlined style={{ color: '#6b7280', fontSize: 15 }} />
-          <span style={{ color: '#6b7280', fontSize: 13, minWidth: 36 }}>时间</span>
+          <ClockCircleOutlined style={{ color: 'var(--cal-text-2)', fontSize: 15 }} />
+          <span style={{ color: 'var(--cal-text-2)', fontSize: 13, minWidth: 36 }}>时间</span>
           <span style={{ fontSize: 14, fontWeight: 500 }}>
             {timeText || '未设置'}
           </span>
@@ -182,8 +182,8 @@ export default function EventDetailModal({
         {/* Recurrence */}
         {event.recurrence && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <SyncOutlined style={{ color: '#6b7280', fontSize: 15 }} />
-            <span style={{ color: '#6b7280', fontSize: 13, minWidth: 36 }}>重复</span>
+            <SyncOutlined style={{ color: 'var(--cal-text-2)', fontSize: 15 }} />
+            <span style={{ color: 'var(--cal-text-2)', fontSize: 13, minWidth: 36 }}>重复</span>
             <span style={{ fontSize: 14, fontWeight: 500 }}>
               {RECURRENCE_LABELS[event.recurrence] || event.recurrence}
               {event.recurrence_end ? `，至 ${event.recurrence_end}` : ''}
@@ -194,8 +194,8 @@ export default function EventDetailModal({
         {/* Description */}
         {event.description && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <ProfileOutlined style={{ color: '#6b7280', fontSize: 15, marginTop: 2 }} />
-            <span style={{ color: '#6b7280', fontSize: 13, minWidth: 36 }}>备注</span>
+            <ProfileOutlined style={{ color: 'var(--cal-text-2)', fontSize: 15, marginTop: 2 }} />
+            <span style={{ color: 'var(--cal-text-2)', fontSize: 13, minWidth: 36 }}>备注</span>
             <span style={{ fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {event.description}
             </span>
@@ -213,7 +213,7 @@ export default function EventDetailModal({
               flexShrink: 0,
             }}
           />
-          <span style={{ color: '#6b7280', fontSize: 13, minWidth: 36 }}>标签</span>
+          <span style={{ color: 'var(--cal-text-2)', fontSize: 13, minWidth: 36 }}>标签</span>
           <span style={{ fontSize: 14, fontWeight: 500, color: event.color }}>
             {event.color}
           </span>
@@ -221,8 +221,8 @@ export default function EventDetailModal({
 
         {/* Created time */}
         {event.created_at && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, paddingTop: 10, borderTop: '1px solid #e5e7eb' }}>
-            <span style={{ color: '#9ca3af', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--cal-border)' }}>
+            <span style={{ color: 'var(--cal-text-3)', fontSize: 12 }}>
               创建于 {dayjs(event.created_at).format('YYYY-MM-DD HH:mm')}
             </span>
           </div>

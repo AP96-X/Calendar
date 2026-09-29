@@ -62,8 +62,8 @@ export default function MonthView({
   return (
     <div>
       {/* Weekday header - 六/日 already in red, no need to mark weekends in cells */}
-      <div className="cal-month-header" style={{ display: 'grid', gridTemplateColumns: '36px repeat(7, 1fr)', background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
-        <div style={{ padding: '8px 0', textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#6b7280' }}>周次</div>
+      <div className="cal-month-header" style={{ display: 'grid', gridTemplateColumns: '36px repeat(7, 1fr)', background: 'var(--cal-surface-2)', borderBottom: '1px solid var(--cal-border)' }}>
+        <div style={{ padding: '8px 0', textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--cal-text-2)' }}>周次</div>
         {WEEKDAY_LABELS.map((label, i) => (
           <div
             key={label}
@@ -72,7 +72,7 @@ export default function MonthView({
               textAlign: 'center',
               fontSize: 13,
               fontWeight: 600,
-              color: i >= 5 ? '#e74c3c' : '#6b7280',
+              color: i >= 5 ? 'var(--cal-danger)' : 'var(--cal-text-2)',
             }}
           >
             {label}
@@ -99,20 +99,20 @@ export default function MonthView({
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: 11,
-                  color: '#6b7280',
-                  background: '#f8fafc',
-                  borderBottom: '1px solid #e5e7eb',
+                  color: 'var(--cal-text-2)',
+                  background: 'var(--cal-surface-2)',
+                  borderBottom: '1px solid var(--cal-border)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#e8f0fe';
-                  e.currentTarget.style.color = '#4A90D9';
+                  e.currentTarget.style.background = 'var(--cal-primary-bg)';
+                  e.currentTarget.style.color = 'var(--cal-primary)';
                   e.currentTarget.style.fontWeight = '600';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#f8fafc';
-                  e.currentTarget.style.color = '#6b7280';
+                  e.currentTarget.style.background = 'var(--cal-surface-2)';
+                  e.currentTarget.style.color = 'var(--cal-text-2)';
                   e.currentTarget.style.fontWeight = 'normal';
                 }}
               >
@@ -150,7 +150,7 @@ export default function MonthView({
                 endDrag();
                 onEventDrop(dragged, cell.date);
               }}
-              style={isDropTarget ? { outline: '2px dashed #4A90D9', outlineOffset: -2, background: '#eef5fd' } : undefined}
+              style={isDropTarget ? { outline: '2px dashed var(--cal-primary)', outlineOffset: -2, background: 'var(--cal-primary-bg)' } : undefined}
             >
               {/* Day header: number + badges */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
@@ -202,10 +202,7 @@ export default function MonthView({
                         onEventToggle(ev.id);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      style={{
-                        transform: 'scale(0.75)',
-                        '--ant-color-primary': 'rgba(255,255,255,0.8)',
-                      } as React.CSSProperties}
+                      style={{ transform: 'scale(0.75)' }}
                     />
                     <span className="cal-mini-text" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {ev.recurrence ? <SyncOutlined style={{ fontSize: 10, marginRight: 3, opacity: 0.85 }} /> : null}

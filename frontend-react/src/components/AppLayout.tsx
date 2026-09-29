@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Layout, Dropdown, Button, Space, Modal, App } from 'antd';
-import { UserOutlined, LogoutOutlined, DownOutlined, SettingOutlined, SafetyOutlined } from '@ant-design/icons';
+import { Layout, Dropdown, Button, Space, Modal, App, Tooltip } from 'antd';
+import { UserOutlined, LogoutOutlined, DownOutlined, SettingOutlined, SafetyOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../stores/auth';
+import { useTheme } from '../stores/theme';
 import { siteApi } from '../api/site';
 import type { ReactNode } from 'react';
 
@@ -18,6 +19,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, headerExtra, headerLeft }: AppLayoutProps) {
   const { user, isAdmin, logout } = useAuth();
+  const { resolved: themeMode, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const { message } = App.useApp();
@@ -70,8 +72,8 @@ export default function AppLayout({ children, headerExtra, headerLeft }: AppLayo
       <Header
         className="app-header"
         style={{
-          background: '#fff',
-          borderBottom: '1px solid #e5e7eb',
+          background: 'var(--cal-surface)',
+          borderBottom: '1px solid var(--cal-border)',
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
@@ -81,12 +83,12 @@ export default function AppLayout({ children, headerExtra, headerLeft }: AppLayo
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          boxShadow: '0 1px 3px var(--cal-shadow)',
         }}
       >
         <div className="app-header-left" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <span
-            style={{ fontSize: 20, fontWeight: 700, color: '#4A90D9', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            style={{ fontSize: 20, fontWeight: 700, color: 'var(--cal-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}
             onClick={() => navigate('/')}
           >
             日历视图
@@ -96,6 +98,14 @@ export default function AppLayout({ children, headerExtra, headerLeft }: AppLayo
 
         <div className="app-header-right" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {headerExtra}
+          <Tooltip title={themeMode === 'dark' ? '切换到浅色模式' : '切换到深色模式'}>
+            <Button
+              type="text"
+              aria-label="切换主题"
+              icon={themeMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggleTheme}
+            />
+          </Tooltip>
           <Dropdown menu={{ items: menuItems }} trigger={['click']}>
             <Button type="text">
               <Space>
@@ -112,16 +122,16 @@ export default function AppLayout({ children, headerExtra, headerLeft }: AppLayo
         <div style={{ maxWidth: 1300, margin: '0 auto' }}>{children}</div>
       </Content>
 
-      <Footer style={{ textAlign: 'center', padding: '16px 24px', background: '#f5f5f5', borderTop: '1px solid #e5e7eb' }}>
+      <Footer style={{ textAlign: 'center', padding: '16px 24px', background: 'var(--cal-surface-2)', borderTop: '1px solid var(--cal-border)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 13, color: '#9ca3af' }}>日历视图 © {new Date().getFullYear()}</span>
+          <span style={{ fontSize: 13, color: 'var(--cal-text-3)' }}>日历视图 © {new Date().getFullYear()}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
             {icpNumber && (
               <a
                 href="https://beian.miit.gov.cn/"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'none' }}
+                style={{ fontSize: 12, color: 'var(--cal-text-3)', textDecoration: 'none' }}
               >
                 {icpNumber}
               </a>
@@ -131,7 +141,7 @@ export default function AppLayout({ children, headerExtra, headerLeft }: AppLayo
                 href="http://www.beian.gov.cn/portal/registerSystemInfo"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                style={{ fontSize: 12, color: 'var(--cal-text-3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 <img src="https://www.beian.gov.cn/img/ghs.png" alt="" style={{ width: 14, height: 14 }} />
                 {publicSecurityNumber}

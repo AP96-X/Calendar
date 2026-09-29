@@ -47,11 +47,11 @@ export default function Login() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'var(--cal-login-bg)',
     }}>
-      <Card style={{ width: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }} variant="borderless">
+      <Card style={{ width: 400, boxShadow: '0 4px 24px var(--cal-shadow)' }} variant="borderless">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={2} style={{ color: '#4A90D9', marginBottom: 4 }}>日历视图</Title>
+          <Title level={2} style={{ color: 'var(--cal-primary)', marginBottom: 4 }}>日历视图</Title>
           <Typography.Text type="secondary">请登录以继续</Typography.Text>
         </div>
         <Form

@@ -108,12 +108,12 @@ export default function DayView({
   };
 
   return (
-    <div style={{ background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', padding: 24 }}>
+    <div style={{ background: 'var(--cal-surface)', borderRadius: 8, boxShadow: '0 1px 3px var(--cal-shadow)', padding: 24 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: '2px solid #4A90D9' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: '2px solid var(--cal-primary)' }}>
         <div>
           <h3 style={{ fontSize: 22, marginBottom: 4 }}>{getDayLabel(selectedDate)}</h3>
-          <div style={{ fontSize: 14, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 14, color: 'var(--cal-text-2)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {lunarInfo.text && <span className={`cal-day-lunar ${lunarInfo.className}`} style={{ fontSize: 14 }}>{lunarInfo.text}</span>}
             {badges.map((b, i) => (
               <span key={i} className={`cal-badge ${b.className}`} title={b.title}>{b.text}</span>
@@ -140,13 +140,13 @@ export default function DayView({
               position: 'relative',
               maxHeight: 620,
               overflowY: 'auto',
-              border: '1px solid #f1f5f9',
+              border: '1px solid var(--cal-border-subtle)',
               borderRadius: 8,
             }}
           >
             <div style={{ display: 'flex' }}>
               {/* 刻度列 */}
-              <div style={{ width: 58, flexShrink: 0, background: '#fafbfc' }}>
+              <div style={{ width: 58, flexShrink: 0, background: 'var(--cal-surface-2)' }}>
                 {HOURS.map((h) => (
                   <div key={h} style={{ height: HOUR_HEIGHT, position: 'relative' }}>
                     <span
@@ -155,8 +155,8 @@ export default function DayView({
                         top: -7,
                         right: 8,
                         fontSize: 11,
-                        color: '#94a3b8',
-                        background: '#fafbfc',
+                        color: 'var(--cal-text-3)',
+                        background: 'var(--cal-surface-2)',
                         padding: '0 2px',
                       }}
                     >
@@ -167,22 +167,22 @@ export default function DayView({
               </div>
 
               {/* 事件区 */}
-              <div style={{ position: 'relative', flex: 1, borderLeft: '1px solid #e5e7eb' }}>
+              <div style={{ position: 'relative', flex: 1, borderLeft: '1px solid var(--cal-border)' }}>
                 {HOURS.map((h) => (
                   <div
                     key={h}
                     style={{
                       height: HOUR_HEIGHT,
-                      borderTop: h === 0 ? 'none' : '1px solid #f1f5f9',
-                      background: h % 2 === 0 ? '#fff' : '#fcfdfe',
+                      borderTop: h === 0 ? 'none' : '1px solid var(--cal-border-subtle)',
+                      background: h % 2 === 0 ? 'var(--cal-surface)' : 'var(--cal-surface-2)',
                     }}
                   />
                 ))}
 
                 {/* 当前时间指示线 */}
                 {showNowLine && (
-                  <div style={{ position: 'absolute', left: 0, right: 0, top: nowTop, borderTop: '2px solid #e74c3c', zIndex: 3, pointerEvents: 'none' }}>
-                    <span style={{ position: 'absolute', left: -4, top: -4, width: 8, height: 8, borderRadius: '50%', background: '#e74c3c' }} />
+                  <div style={{ position: 'absolute', left: 0, right: 0, top: nowTop, borderTop: '2px solid var(--cal-danger)', zIndex: 3, pointerEvents: 'none' }}>
+                    <span style={{ position: 'absolute', left: -4, top: -4, width: 8, height: 8, borderRadius: '50%', background: 'var(--cal-danger)' }} />
                   </div>
                 )}
 

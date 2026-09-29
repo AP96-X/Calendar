@@ -1,3 +1,65 @@
+/* ========== 主题变量 ==========
+   浅色为默认值，深色由 <html data-theme="dark"> 覆盖。
+   组件内的内联样式同样使用这些变量，避免深色下残留白底。 */
+:root {
+  /* 页面与容器 */
+  --cal-bg: #f0f2f5;
+  --cal-surface: #ffffff;
+  --cal-surface-2: #f8fafc;
+  --cal-surface-3: #fafafa;
+  --cal-border: #e5e7eb;
+  --cal-border-subtle: #f1f5f9;
+  /* 文本 */
+  --cal-text: #1a1a2e;
+  --cal-text-2: #6b7280;
+  --cal-text-3: #9ca3af;
+  /* 主色与状态色 */
+  --cal-primary: #4a90d9;
+  --cal-primary-bg: #e8f0fe;
+  --cal-danger: #e74c3c;
+  --cal-ok: #27ae60;
+  --cal-holiday: #ff6b6b;
+  --cal-festival: #ff9800;
+  --cal-adjust: #e67e22;
+  --cal-term: #3498db;
+  --cal-shadow: rgba(0, 0, 0, 0.08);
+  /* 登录页背景渐变 */
+  --cal-login-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* AI 报告 Markdown */
+  --cal-md-text: rgba(0, 0, 0, 0.88);
+  --cal-md-code: #f0f0f0;
+  --cal-md-quote-bg: #fafafa;
+  --cal-md-quote-border: #d9d9d9;
+  --cal-md-strong: #1677ff;
+}
+
+[data-theme='dark'] {
+  --cal-bg: #0f1115;
+  --cal-surface: #171a21;
+  --cal-surface-2: #1f242d;
+  --cal-surface-3: #141821;
+  --cal-border: #2a2f3a;
+  --cal-border-subtle: #232833;
+  --cal-text: #e6e8eb;
+  --cal-text-2: #a1a7b3;
+  --cal-text-3: #6b7280;
+  --cal-primary: #5aa0e6;
+  --cal-primary-bg: rgba(74, 144, 217, 0.18);
+  --cal-danger: #ff6b5e;
+  --cal-ok: #3ec27a;
+  --cal-holiday: #ff7b7b;
+  --cal-festival: #ffa733;
+  --cal-adjust: #f08a3c;
+  --cal-term: #4aa8e8;
+  --cal-shadow: rgba(0, 0, 0, 0.5);
+  --cal-login-bg: linear-gradient(135deg, #232a4d 0%, #3a2748 100%);
+  --cal-md-text: rgba(255, 255, 255, 0.85);
+  --cal-md-code: #232833;
+  --cal-md-quote-bg: #1b2027;
+  --cal-md-quote-border: #3a4150;
+  --cal-md-strong: #6cb2ff;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -6,9 +68,10 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: #f0f2f5;
-  color: #1a1a2e;
+  background: var(--cal-bg);
+  color: var(--cal-text);
   min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
@@ -18,7 +81,7 @@ body {
 /* Calendar day cell custom styles */
 .cal-day-cell {
   min-height: 110px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--cal-border);
   padding: 4px 6px;
   cursor: pointer;
   transition: background 0.2s ease;
@@ -27,21 +90,21 @@ body {
 }
 
 .cal-day-cell:hover {
-  background: #f8fafc;
+  background: var(--cal-surface-2);
 }
 
 .cal-day-cell.other-month {
-  background: #fafafa;
-  color: #ccc;
+  background: var(--cal-surface-3);
+  color: var(--cal-text-3);
 }
 
 .cal-day-cell.today {
-  background: #e8f0fe;
+  background: var(--cal-primary-bg);
 }
 
 .cal-day-cell.today .cal-day-num {
   font-weight: 700;
-  color: #4A90D9;
+  color: var(--cal-primary);
 }
 
 .cal-day-num {
@@ -54,16 +117,16 @@ body {
 
 .cal-day-lunar {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--cal-text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.cal-day-lunar.holiday-text { color: #FF6B6B; font-weight: 600; }
-.cal-day-lunar.festival-text { color: #FF9800; font-weight: 600; }
-.cal-day-lunar.adjust-text { color: #E67E22; font-weight: 600; }
-.cal-day-lunar.term-text { color: #3498DB; font-weight: 600; }
+.cal-day-lunar.holiday-text { color: var(--cal-holiday); font-weight: 600; }
+.cal-day-lunar.festival-text { color: var(--cal-festival); font-weight: 600; }
+.cal-day-lunar.adjust-text { color: var(--cal-adjust); font-weight: 600; }
+.cal-day-lunar.term-text { color: var(--cal-term); font-weight: 600; }
 
 .cal-day-events {
   display: flex;
@@ -95,14 +158,14 @@ body {
 
 .cal-more-events {
   font-size: 11px;
-  color: #4A90D9;
+  color: var(--cal-primary);
   cursor: pointer;
   padding: 1px 4px;
 }
 
 /* Week view */
 .cal-week-col {
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--cal-border);
   min-height: 450px;
   display: flex;
   flex-direction: column;
@@ -116,18 +179,18 @@ body {
 .cal-week-header {
   padding: 10px;
   text-align: center;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--cal-border);
   font-size: 13px;
   font-weight: 600;
-  background: #f8fafc;
+  background: var(--cal-surface-2);
 }
 
 .cal-week-header.today {
-  background: #e8f0fe;
+  background: var(--cal-primary-bg);
 }
 
 .cal-week-header.today .cal-week-num {
-  color: #4A90D9;
+  color: var(--cal-primary);
 }
 
 .cal-week-body {
@@ -156,7 +219,7 @@ body {
 }
 
 .cal-week-add:hover {
-  color: #4A90D9 !important;
+  color: var(--cal-primary) !important;
 }
 
 /* Day view — 全天事件 */
@@ -248,38 +311,39 @@ body {
 }
 
 .cal-color-dot.selected {
-  border-color: #333;
+  border-color: var(--cal-text);
 }
 
-/* Checkbox on colored event backgrounds - make it visible */
-.cal-mini-event .ant-checkbox-inner,
-.cal-week-event .ant-checkbox-inner,
-.cal-timeline-event .ant-checkbox-inner,
-.cal-day-allday .ant-checkbox-inner {
+/* Checkbox on colored event backgrounds - make it visible
+   注：antd v6 起复选框不再有 .ant-checkbox-inner，方框与对勾都直接画在 .ant-checkbox 上 */
+.cal-mini-event .ant-checkbox,
+.cal-week-event .ant-checkbox,
+.cal-timeline-event .ant-checkbox,
+.cal-day-allday .ant-checkbox {
   background-color: rgba(255, 255, 255, 0.25) !important;
   border-color: rgba(255, 255, 255, 0.6) !important;
 }
 
-.cal-mini-event .ant-checkbox-checked .ant-checkbox-inner,
-.cal-week-event .ant-checkbox-checked .ant-checkbox-inner,
-.cal-timeline-event .ant-checkbox-checked .ant-checkbox-inner,
-.cal-day-allday .ant-checkbox-checked .ant-checkbox-inner {
+.cal-mini-event .ant-checkbox-checked,
+.cal-week-event .ant-checkbox-checked,
+.cal-timeline-event .ant-checkbox-checked,
+.cal-day-allday .ant-checkbox-checked {
   background-color: #fff !important;
   border-color: #fff !important;
 }
 
-.cal-mini-event .ant-checkbox-checked .ant-checkbox-inner::after,
-.cal-week-event .ant-checkbox-checked .ant-checkbox-inner::after,
-.cal-timeline-event .ant-checkbox-checked .ant-checkbox-inner::after,
-.cal-day-allday .ant-checkbox-checked .ant-checkbox-inner::after {
-  border-color: #27ae60 !important;
+.cal-mini-event .ant-checkbox-checked::after,
+.cal-week-event .ant-checkbox-checked::after,
+.cal-timeline-event .ant-checkbox-checked::after,
+.cal-day-allday .ant-checkbox-checked::after {
+  border-color: var(--cal-ok) !important;
 }
 
 /* ========== AI 报告 Markdown 渲染 ========== */
 .report-markdown {
   font-size: 14px;
   line-height: 1.7;
-  color: rgba(0, 0, 0, 0.88);
+  color: var(--cal-md-text);
   word-break: break-word;
 }
 
@@ -292,7 +356,7 @@ body {
 
 .report-markdown h1 {
   font-size: 18px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--cal-border);
   padding-bottom: 6px;
 }
 
@@ -317,11 +381,11 @@ body {
 
 .report-markdown strong {
   font-weight: 600;
-  color: #1677ff;
+  color: var(--cal-md-strong);
 }
 
 .report-markdown code {
-  background: #f0f0f0;
+  background: var(--cal-md-code);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 12px;
@@ -330,9 +394,9 @@ body {
 .report-markdown blockquote {
   margin: 8px 0;
   padding: 4px 12px;
-  border-left: 3px solid #d9d9d9;
-  color: #666;
-  background: #fafafa;
+  border-left: 3px solid var(--cal-md-quote-border);
+  color: var(--cal-text-2);
+  background: var(--cal-md-quote-bg);
   border-radius: 0 4px 4px 0;
 }
 
@@ -344,7 +408,7 @@ body {
 
 .report-markdown th,
 .report-markdown td {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--cal-border);
   padding: 4px 10px;
   text-align: left;
 }

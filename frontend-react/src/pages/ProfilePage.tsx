@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Descriptions, App, Spin } from 'antd';
+import { Card, Form, Input, Button, Descriptions, App, Spin, Segmented } from 'antd';
 import AppLayout from '../components/AppLayout';
 import { profileApi } from '../api/profile';
 import { useAuth } from '../stores/auth';
+import { useTheme } from '../stores/theme';
+import type { ThemeMode } from '../stores/theme';
 import { passwordValidator } from '../utils/password';
 import { formatCnTime } from '../utils/time';
 import type { Profile } from '../types';
 
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const { message } = App.useApp();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,6 +107,21 @@ export default function ProfilePage() {
               </Button>
             </Form.Item>
           </Form>
+        </Card>
+
+        <Card title="外观" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--cal-text-2)' }}>主题模式</span>
+            <Segmented
+              value={themeMode}
+              onChange={(v) => setThemeMode(v as ThemeMode)}
+              options={[
+                { label: '浅色', value: 'light' },
+                { label: '深色', value: 'dark' },
+                { label: '跟随系统', value: 'system' },
+              ]}
+            />
+          </div>
         </Card>
 
         <Card title="修改密码">

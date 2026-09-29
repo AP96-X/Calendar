@@ -274,7 +274,7 @@ export default function ReportModal({ open, period, anchorDate, onClose }: Repor
       )}
 
       {/* 将提交给 AI 的事件清单（只读） */}
-      <div style={{ marginBottom: 12, border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, background: '#fafafa' }}>
+      <div style={{ marginBottom: 12, border: '1px solid var(--cal-border)', borderRadius: 8, padding: 12, background: 'var(--cal-surface-3)' }}>
         <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }} wrap>
           <Text strong>将提交给 AI 的事件（共 {stats?.total ?? 0} 条，由 AI 自动合并相同/相似项）</Text>
           {stats && (
@@ -412,7 +412,7 @@ export default function ReportModal({ open, period, anchorDate, onClose }: Repor
         />
       )}
 
-      <div style={{ minHeight: 200, maxHeight: '60vh', overflowY: 'auto', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: 16 }}>
+      <div style={{ minHeight: 200, maxHeight: '60vh', overflowY: 'auto', background: 'var(--cal-surface-3)', border: '1px solid var(--cal-border)', borderRadius: 8, padding: 16 }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', gap: 12 }}>
             <Spin size="large" />

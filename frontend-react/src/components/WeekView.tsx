@@ -48,7 +48,7 @@ export default function WeekView({
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', background: 'var(--cal-surface)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 3px var(--cal-shadow)' }}>
       {weekDates.map((dateStr, i) => {
         const d = new Date(dateStr);
         const meta = calendarMeta[dateStr];
@@ -69,7 +69,7 @@ export default function WeekView({
               onClick={() => onDayHeaderClick(dateStr)}
               style={{ cursor: 'pointer', minHeight: 80 }}
             >
-              <div style={{ fontSize: 11, color: isWeekend ? '#e74c3c' : '#6b7280' }}>
+              <div style={{ fontSize: 11, color: isWeekend ? 'var(--cal-danger)' : 'var(--cal-text-2)' }}>
                 {WEEKDAY_NAMES[i]}
               </div>
               <div className="cal-week-num" style={{ fontSize: 18, fontWeight: 600, marginTop: 2 }}>
@@ -93,7 +93,7 @@ export default function WeekView({
                 padding: '4px 4px',
                 gap: 3,
                 minHeight: 220,
-                ...(isDropTarget ? { outline: '2px dashed #4A90D9', outlineOffset: -2, background: '#eef5fd' } : {}),
+                ...(isDropTarget ? { outline: '2px dashed var(--cal-primary)', outlineOffset: -2, background: 'var(--cal-primary-bg)' } : {}),
               }}
               onClick={() => onDayClick(dateStr)}
               onDragOver={(e) => {
@@ -145,10 +145,10 @@ export default function WeekView({
 
               {dragging ? (
                 <div
-                  style={{ marginTop: 6, borderTop: '1px dashed #cbd5e1', paddingTop: 4 }}
+                  style={{ marginTop: 6, borderTop: '1px dashed var(--cal-border)', paddingTop: 4 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', marginBottom: 3 }}>
+                  <div style={{ fontSize: 10, color: 'var(--cal-text-3)', textAlign: 'center', marginBottom: 3 }}>
                     拖到下方时间设置时间
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
@@ -172,8 +172,8 @@ export default function WeekView({
                             textAlign: 'center',
                             padding: '2px 0',
                             borderRadius: 3,
-                            background: '#f1f5f9',
-                            color: '#475569',
+                            background: 'var(--cal-surface-2)',
+                            color: 'var(--cal-text-2)',
                             cursor: 'copy',
                           }}
                         >
@@ -186,7 +186,7 @@ export default function WeekView({
               ) : (
                 <div
                   className="cal-week-add"
-                  style={{ fontSize: 10, color: '#ccc', textAlign: 'center', padding: '4px 0', marginTop: 'auto', cursor: 'pointer' }}
+                  style={{ fontSize: 10, color: 'var(--cal-text-3)', textAlign: 'center', padding: '4px 0', marginTop: 'auto', cursor: 'pointer' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     onDayClick(dateStr);

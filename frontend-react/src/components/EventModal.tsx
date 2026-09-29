@@ -307,7 +307,7 @@ export default function EventModal({ open, mode, event, defaultDate, onClose, on
               }}
               placeholder="#4A90D9"
               style={{ width: 120, textTransform: 'uppercase' }}
-              prefix={<span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: selectedColor, border: '1px solid #d9d9d9' }} />}
+              prefix={<span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: selectedColor, border: '1px solid var(--cal-border)' }} />}
             />
           </div>
         </Form.Item>

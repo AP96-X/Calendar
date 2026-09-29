@@ -372,17 +372,17 @@ export default function CalendarPage() {
       <div style={{ fontWeight: 600, marginBottom: 8 }}>日历数据来源</div>
       <div style={{ marginBottom: 4 }}>
         <Text code style={{ fontSize: 12 }}>lunardate</Text>
-        <span style={{ fontSize: 12, color: '#666', marginLeft: 6 }}>农历日期换算</span>
+        <span style={{ fontSize: 12, color: 'var(--cal-text-2)', marginLeft: 6 }}>农历日期换算</span>
       </div>
       <div style={{ marginBottom: 4 }}>
         <Text code style={{ fontSize: 12 }}>chinese_calendar</Text>
-        <span style={{ fontSize: 12, color: '#666', marginLeft: 6 }}>中国法定节假日 / 调休</span>
+        <span style={{ fontSize: 12, color: 'var(--cal-text-2)', marginLeft: 6 }}>中国法定节假日 / 调休</span>
       </div>
       <div style={{ marginBottom: 8 }}>
         <Text code style={{ fontSize: 12 }}>ephem</Text>
-        <span style={{ fontSize: 12, color: '#666', marginLeft: 6 }}>天文计算二十四节气</span>
+        <span style={{ fontSize: 12, color: 'var(--cal-text-2)', marginLeft: 6 }}>天文计算二十四节气</span>
       </div>
-      <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 6, fontSize: 12, color: '#999' }}>
+      <div style={{ borderTop: '1px solid var(--cal-border)', paddingTop: 6, fontSize: 12, color: 'var(--cal-text-3)' }}>
         {metaUpdatedAt ? `最近更新：${metaUpdatedAt}` : '尚未更新'}
       </div>
     </div>
@@ -454,7 +454,7 @@ export default function CalendarPage() {
       }
     >
       <Spin spinning={loading}>
-        <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+        <Card variant="borderless" style={{ borderRadius: 8, boxShadow: '0 1px 3px var(--cal-shadow)', overflow: 'hidden' }}>
           {viewMode === 'month' && (
             <MonthView
               year={currentYear}

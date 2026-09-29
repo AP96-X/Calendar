@@ -4,7 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f0f2f5" />
     <title>日历视图</title>
+    <script>
+      // 在首帧渲染前应用已保存的主题，避免深色用户看到浅色闪屏。
+      // 读取的键名 / 取值需与 src/stores/theme.tsx 保持一致。
+      (function () {
+        try {
+          var mode = localStorage.getItem('calendar-theme');
+          var prefersDark = window.matchMedia
+            && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = mode === 'dark' || ((!mode || mode === 'system') && prefersDark);
+          var theme = dark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#0f1115' : '#f0f2f5');
+        } catch (e) {
+          /* localStorage 不可用时保持默认浅色 */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
